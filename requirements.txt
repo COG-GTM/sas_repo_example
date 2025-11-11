@@ -1,0 +1,27 @@
+# Core PySpark and data analysis packages for SAS to PySpark migration
+pyspark>=3.4.0
+pandas>=2.0.0
+numpy>=1.24.0
+pyarrow>=12.0.0
+
+# Statistical analysis packages (SAS equivalent functionality)
+scipy>=1.10.0
+statsmodels>=0.14.0
+scikit-learn>=1.3.0
+
+# Data visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# File format support
+openpyxl>=3.1.0
+xlrd>=2.0.0
+
+# Jupyter notebook support for interactive analysis
+jupyter>=1.0.0
+ipykernel>=6.25.0
+
+# Code quality tools
+black>=23.0.0
+flake8>=6.0.0
