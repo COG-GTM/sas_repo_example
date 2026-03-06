@@ -167,12 +167,17 @@ def build_etl_with_intermediates(
     )
 
     # Create JOINT_PAIN variable and SPOP (subpopulation: age 18+)
+    # NOTE: ARTHDX threshold differs by year due to 2018 CAPI redesign:
+    #   2017: exclude when ARTHDX <= 0 AND JTPAIN31 < 0
+    #   2018-2019: exclude when ARTHDX < 0 AND JTPAIN31_M18 < 0
     pool = pool.withColumn(
         "SPOP",
         when(
             (col("AGELAST") >= 18)
             & ~(
-                (col("ARTHDX") <= 0) & (col("JTPAIN_VAR") < 0)
+                when(col("YEAR") == 2017, col("ARTHDX") <= 0)
+                .otherwise(col("ARTHDX") < 0)
+                & (col("JTPAIN_VAR") < 0)
             ),
             1
         ).otherwise(0)

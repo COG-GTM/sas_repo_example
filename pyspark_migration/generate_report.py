@@ -307,9 +307,9 @@ def _run_pytest_and_get_results() -> dict:
         for job_name, tests in updated.items():
             new_tests = []
             for test_name, status in tests:
-                if f"PASSED" in output and test_name in output:
+                if any(test_name in line and "PASSED" in line for line in output.splitlines()):
                     new_tests.append((test_name, "PASS"))
-                elif f"FAILED" in output and test_name in output:
+                elif any(test_name in line and "FAILED" in line for line in output.splitlines()):
                     new_tests.append((test_name, "FAIL"))
                 else:
                     new_tests.append((test_name, status))
