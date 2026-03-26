@@ -1,0 +1,6 @@
+pyspark>=3.4.0
+pandas>=1.5.0
+samplics>=0.4.0
+statsmodels>=0.14.0
+requests>=2.28.0
+sas7bdat>=2.2.3
