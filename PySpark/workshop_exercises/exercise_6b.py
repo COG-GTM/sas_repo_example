@@ -78,16 +78,22 @@ results = survey_mean(
 print(results.to_string())
 
 # Model covariates (shared across all 3 models)
-covariates = "AGELAST + SEX_label + RACETHX_label + INSCOV20_label + REGION_label"
-class_vars = ["SEX_label", "RACETHX_label", "INSCOV20_label", "REGION_label"]
+predictor_cols = ["AGELAST", "SEX_label", "RACETHX_label", "INSCOV20_label", "REGION_label"]
+class_vars = {
+    "SEX_label": "1. male",
+    "RACETHX_label": "1. hispanic",
+    "INSCOV20_label": "1. any private",
+    "REGION_label": "1. northeast",
+}
 
 # Model 1: Delayed medical care
 print("\n=== Logistic Regression: Delayed Medical Care ===")
-print(f"Model: DELAYED_CARE_MED ~ {covariates}")
+print(f"Model: DELAYED_CARE_MED ~ {' + '.join(predictor_cols)}")
 print("Reference: sex=1. male, racethx=1. hispanic, inscov20=1. any private, region=1. northeast")
 logit1 = survey_logistic(
     meps_2020,
-    model_formula=f"DELAYED_CARE_MED ~ {covariates}",
+    outcome_col="DELAYED_CARE_MED",
+    predictor_cols=predictor_cols,
     stratum_col="VARSTR",
     cluster_col="VARPSU",
     weight_col="PERWT20F",
@@ -97,10 +103,11 @@ print(logit1)
 
 # Model 2: Delayed dental care
 print("\n=== Logistic Regression: Delayed Dental Care ===")
-print(f"Model: DELAYED_CARE_DENTAL ~ {covariates}")
+print(f"Model: DELAYED_CARE_DENTAL ~ {' + '.join(predictor_cols)}")
 logit2 = survey_logistic(
     meps_2020,
-    model_formula=f"DELAYED_CARE_DENTAL ~ {covariates}",
+    outcome_col="DELAYED_CARE_DENTAL",
+    predictor_cols=predictor_cols,
     stratum_col="VARSTR",
     cluster_col="VARPSU",
     weight_col="PERWT20F",
@@ -110,10 +117,11 @@ print(logit2)
 
 # Model 3: Delayed prescribed medicines
 print("\n=== Logistic Regression: Delayed Prescribed Medicines ===")
-print(f"Model: DELAYED_CARE_PMEDS ~ {covariates}")
+print(f"Model: DELAYED_CARE_PMEDS ~ {' + '.join(predictor_cols)}")
 logit3 = survey_logistic(
     meps_2020,
-    model_formula=f"DELAYED_CARE_PMEDS ~ {covariates}",
+    outcome_col="DELAYED_CARE_PMEDS",
+    predictor_cols=predictor_cols,
     stratum_col="VARSTR",
     cluster_col="VARPSU",
     weight_col="PERWT20F",

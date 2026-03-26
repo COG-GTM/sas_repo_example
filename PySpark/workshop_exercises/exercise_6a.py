@@ -71,11 +71,12 @@ print("Reference categories: sex=Male, racethx=Hispanic, inscov18=Any Private")
 
 logit_results = survey_logistic(
     meps_2018.filter(F.col("AGELAST") >= 18),
-    model_formula="FLUSHOT ~ AGELAST + SEX_label + RACETHX_label + INSCOV18_label",
+    outcome_col="FLUSHOT",
+    predictor_cols=["AGELAST", "SEX_label", "RACETHX_label", "INSCOV18_label"],
     stratum_col="VARSTR",
     cluster_col="VARPSU",
     weight_col="SAQWT18F",
-    class_vars=["SEX_label", "RACETHX_label", "INSCOV18_label"],
+    class_vars={"SEX_label": "Male", "RACETHX_label": "Hispanic", "INSCOV18_label": "Any Private"},
 )
 print(logit_results)
 
