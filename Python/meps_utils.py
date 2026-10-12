@@ -471,10 +471,12 @@ def survey_glm(
     ``summary.svyglm``. Returns columns ``variable, estimate, se, t, p``.
     """
     keep = np.ones(len(df), dtype=bool) if subpop is None else subpop.to_numpy(dtype=bool)
+    # complete cases only (R's model frame drops NAs); dropped rows stay in the design with weight 0
+    keep &= df[[outcome, *numeric, *factors]].notna().all(axis=1).to_numpy()
     w = np.where(keep, df[weight].to_numpy(dtype=float), 0.0)
     cols, names = [np.ones(len(df))], ["(Intercept)"]
     for v in numeric:
-        cols.append(df[v].to_numpy(dtype=float))
+        cols.append(np.where(keep, df[v].to_numpy(dtype=float), 0.0))
         names.append(v)
     for f in factors:
         levels = sorted(pd.unique(df.loc[keep & (w > 0), f]))

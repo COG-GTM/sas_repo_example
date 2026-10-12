@@ -142,3 +142,18 @@ def test_adjust_domain_lonely_matches_r():
     np.testing.assert_allclose(mean["se"], [0.830719154021954, 1.02005850634226], rtol=1e-12)
     np.testing.assert_allclose(total["estimate"], [502, 1323], rtol=1e-12)
     np.testing.assert_allclose(total["se"], [406.142832018491, 581.860808097607], rtol=1e-12)
+
+
+def test_survey_glm_drops_incomplete_cases_like_r():
+    # R: same design with AGE[c(3, 40, 77)] <- NA and G[c(5, 90)] <- NA (1-based rows);
+    # svyglm drops incomplete rows from the model frame
+    from meps_utils import survey_glm
+    d = pd.read_csv(Path(__file__).with_name("glm_synth_data.csv"))
+    d.loc[[2, 39, 76], "AGE"] = np.nan
+    d.loc[[4, 89], "G"] = np.nan
+    res = survey_glm(d, "Y", weight="WT", numeric=["AGE"], factors=["G"], subpop=d["SUB"])
+    assert res["variable"].tolist() == ["(Intercept)", "AGE", "as.factor(G)2", "as.factor(G)3"]
+    np.testing.assert_allclose(
+        res["estimate"], [-2.34953696063341, 0.0357501514908902, 0.941174925467802, -0.0495565828023312], rtol=1e-7)
+    np.testing.assert_allclose(
+        res["se"], [1.29192260476308, 0.0175922479843676, 0.58541732494744, 0.478125775553552], rtol=1e-6)
