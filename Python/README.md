@@ -289,3 +289,27 @@ Prescribed medicines for hyperlipidemia, 2020
 <br>
 [ggplot_example/ggplot_example.py](workshop_exercises/ggplot_example/ggplot_example.py) (R only):
 Percent of expenditures by type of service and age, 2013, with a matplotlib bar chart
+
+## Older exercises (1996-2006)
+
+Ports of the [SAS older exercises](../SAS/older_exercises_1996_to_2006) (same folder and file
+names) in [older_exercises_1996_to_2006](older_exercises_1996_to_2006). There are no R
+versions of these programs, so each port is validated against the SAS (or SUDAAN) listing in
+the matching PDF where it prints results (see [VALIDATION.md](VALIDATION.md#older-exercises-1996-2006)).
+The SUDAAN `PROC CROSSTAB` / `PROC DESCRIPT` steps (`design=wr; nest VARSTR VARPSU`) use the
+same `survey_estimate` helper, and `PROC SURVEYREG` / `PROC SURVEYFREQ` use `survey_reg` /
+`survey_freq`.
+
+| Folder | Scripts | Topics |
+| ------ | ------- | ------ |
+| [Employment_examples](older_exercises_1996_to_2006/Employment_examples) | EM1, EM2 | Weekly earnings quartiles and health status; job changes (2002 jobs file) |
+| [Estimation_examples](older_exercises_1996_to_2006/Estimation_examples) | E1-E8 | Means, totals, ratios, domains, regression, family-level and event-level estimates, pooled years, longitudinal file, SURVEYFREQ tables |
+| [Linking_examples](older_exercises_1996_to_2006/Linking_examples) | L1, L1A, L3, L4, L5 | Jobs, conditions, events and CLNK linked to the full-year file |
+| [Misc_examples](older_exercises_1996_to_2006/Misc_examples) | M1-M11 | Weighted vs unweighted, SRS vs complex design, condition/event linking, parent-child linking, ER stays |
+
+`L2` (linking MEPS to the 1999-2000 NHIS) is not ported: it needs the NHIS-MEPS link file, which
+is not a public use file.
+
+Historical files: some 1996-2002 files are read from their current public releases, and
+`read_meps` handles the upper-case file names (`H38.SSP`) and the non-standard VM/CMS
+transport headers (`h56.ssp`) of the oldest zips.
