@@ -1,0 +1,4 @@
+result,domain,variable,estimate,se
+pct_inscovy2_subpop,,as.factor(INSCOVY2)1,0.233,0.066438
+pct_inscovy2_subpop,,as.factor(INSCOVY2)2,0.035,0.019375
+pct_inscovy2_subpop,,as.factor(INSCOVY2)3,0.732,0.067309
