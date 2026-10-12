@@ -343,3 +343,121 @@ def wide_estimates(results: pd.DataFrame, domain: str | Sequence[str]) -> pd.Dat
     wide = results.pivot_table(index=domain, columns="variable", values=["estimate", "se"])
     wide.columns = [f"{v}" if s == "estimate" else f"se.{v}" for s, v in wide.columns]
     return wide.reset_index()
+
+
+# Regression ------------------------------------------------------------------
+
+
+def _score_total_vcov(scores: np.ndarray, stratum: np.ndarray, psu: np.ndarray, lonely_psu: str) -> np.ndarray:
+    """With-replacement (Taylor) covariance of the population total of row-level scores.
+
+    Equivalent to R ``svyrecvar`` for a one-stage design (``nest=TRUE``, no fpc):
+    PSU totals are centered within stratum and scaled by n_h / (n_h - 1). Singleton
+    strata follow ``survey.lonely.psu``: "adjust" centers them at the mean of all PSU
+    totals, "remove" drops them, "fail" raises.
+    """
+    tot = pd.DataFrame(scores).groupby([stratum, psu]).sum()
+    strata = tot.index.get_level_values(0).to_numpy()
+    z = tot.to_numpy()
+    grand = z.mean(axis=0)
+    p = z.shape[1]
+    vcov = np.zeros((p, p))
+    for s in pd.unique(strata):
+        zs = z[strata == s]
+        n_h = len(zs)
+        if n_h == 1:
+            if lonely_psu == "fail":
+                raise ValueError(f"stratum {s} has only one PSU")
+            if lonely_psu == "adjust":
+                d = zs - grand
+                vcov += d.T @ d
+            continue
+        d = zs - zs.mean(axis=0)
+        vcov += n_h / (n_h - 1) * (d.T @ d)
+    return vcov
+
+
+def _irls_logit(x: np.ndarray, y: np.ndarray, w: np.ndarray, max_iter: int) -> tuple[np.ndarray, np.ndarray]:
+    """Weighted logistic fit replicating R ``glm.fit`` (as called by ``svyglm``).
+
+    Mirrors R step for step so results agree to rounding: weights rescaled to mean 1,
+    ``mustart = (w*y + 0.5)/(w + 1)``, convergence on relative deviance change < 1e-8,
+    and R's final working weights (from the start of the last iteration). Returns the
+    coefficients and the per-row influence scores ``estfun %*% (X'WX)^-1``.
+    """
+    pw = w / w.mean()
+    good = pw > 0
+    xg, yg, pwg = x[good], y[good], pw[good]
+
+    def deviance(mu):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            d = np.where(yg > 0, yg * np.log(yg / mu), 0) + np.where(yg < 1, (1 - yg) * np.log((1 - yg) / (1 - mu)), 0)
+        return 2 * np.sum(pwg * d)
+
+    mu = (pwg * yg + 0.5) / (pwg + 1)
+    eta = np.log(mu / (1 - mu))
+    dev_old = deviance(mu)
+    for _ in range(max_iter):
+        mu_eta = mu * (1 - mu)
+        z = eta + (yg - mu) / mu_eta
+        wts = pwg * mu_eta
+        sw = np.sqrt(wts)
+        q, r = np.linalg.qr(xg * sw[:, None])  # least squares via QR, as R's lm.fit
+        beta = np.linalg.solve(r, q.T @ (sw * z))
+        eta = xg @ beta
+        mu = 1 / (1 + np.exp(-eta))
+        dev = deviance(mu)
+        if abs(dev - dev_old) / (abs(dev) + 0.1) < 1e-8:
+            break
+        dev_old = dev
+    scores = np.zeros_like(x)
+    r_inv = np.linalg.inv(r)
+    scores[good] = (xg * (wts * (yg - mu) / (mu * (1 - mu)))[:, None]) @ (r_inv @ r_inv.T)
+    return beta, scores
+
+
+def survey_glm(
+    df: pd.DataFrame,
+    outcome: str,
+    weight: str,
+    numeric: Sequence[str] = (),
+    factors: Sequence[str] = (),
+    stratum: str = "VARSTR",
+    psu: str = "VARPSU",
+    subpop: pd.Series | None = None,
+    lonely_psu: str = "adjust",
+    max_iter: int = 50,
+) -> pd.DataFrame:
+    """Design-based logistic regression, matching R ``svyglm(..., family = quasibinomial)``.
+
+    ``factors`` are expanded to treatment dummies (lowest level as reference) named as R
+    does for ``as.factor(X)``, e.g. ``as.factor(SEX)2``. Rows outside ``subpop`` keep their
+    stratum/PSU in the design with zero weight (R ``subset(design, ...)``). Standard
+    errors use the linearization sandwich; t tests use ``degf(design) + 1 - p`` df, as in
+    ``summary.svyglm``. Returns columns ``variable, estimate, se, t, p``.
+    """
+    keep = np.ones(len(df), dtype=bool) if subpop is None else subpop.to_numpy(dtype=bool)
+    w = np.where(keep, df[weight].to_numpy(dtype=float), 0.0)
+    cols, names = [np.ones(len(df))], ["(Intercept)"]
+    for v in numeric:
+        cols.append(df[v].to_numpy(dtype=float))
+        names.append(v)
+    for f in factors:
+        levels = sorted(pd.unique(df.loc[keep & (w > 0), f]))
+        for lev in levels[1:]:
+            cols.append((df[f] == lev).to_numpy(dtype=float))
+            names.append(f"as.factor({f}){_fmt_level(lev)}")
+    x = np.column_stack(cols)
+    y = np.where(keep, df[outcome].to_numpy(dtype=float), 0.0)
+
+    beta, scores = _irls_logit(x, y, w, max_iter)
+    strata = df[stratum].astype(str).to_numpy(dtype=object)
+    psu_id = df[psu].astype(str).to_numpy(dtype=object)
+    vcov = _score_total_vcov(scores, strata, psu_id, lonely_psu)
+    se = np.sqrt(np.diag(vcov))
+
+    inset = w != 0
+    degf = len(set(zip(strata[inset], psu_id[inset]))) - len(set(strata[inset]))
+    t = beta / se
+    p = 2 * stats.t.sf(np.abs(t), degf + 1 - len(beta))
+    return pd.DataFrame({"variable": names, "estimate": beta, "se": se, "t": t, "p": p})

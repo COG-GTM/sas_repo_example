@@ -29,7 +29,7 @@ def half_ulp(text: str) -> float:
 
 
 def lookup(res: pd.DataFrame, domain: str, variable: str) -> pd.Series | None:
-    dom_cols = [c for c in res.columns if c not in ("variable", "estimate", "se")]
+    dom_cols = [c for c in res.columns if c not in ("variable", "estimate", "se", "t", "p")]
     key = res[dom_cols].astype(str).agg("|".join, axis=1) if dom_cols else pd.Series("", index=res.index)
     hit = res[(key == domain) & (res["variable"] == variable)]
     return hit.iloc[0] if len(hit) == 1 else None
