@@ -1,0 +1,6 @@
+# Python track (MEPS analysis examples). Python 3.10+.
+pandas>=2.1
+numpy>=1.26
+samplics==0.6.1
+pyreadstat>=1.2
+pytest>=7
