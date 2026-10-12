@@ -26,7 +26,13 @@ DESIGN = {"stratum": "VARSTRP4", "psu": "VARPSUP4", "weight": "LONGWTP4"}
 def main(meps_dir=None):
     h38 = read_meps(meps_path("h38.ssp", meps_dir), columns=["DUPERSID", "UNINS99", "TOTEXP99", "PANEL99"])
     h50 = read_meps(meps_path("h50.ssp", meps_dir), columns=["DUPERSID", "UNINS00", "TOTEXP00", "PANEL00"])
-    h58 = read_meps(meps_path("h58.ssp", meps_dir), columns=["DUPERSID", "LONGWTP4", "VARPSUP4", "VARSTRP4", "YRINDP4"])
+    h58 = read_meps(meps_path("h58.ssp", meps_dir))
+    # The current h58 release names the weight LONGWT and has no YRINDP4 (in-scope-both-years flag);
+    # its records are the persons with a positive longitudinal weight.
+    h58 = h58.rename(columns={"LONGWT": "LONGWTP4"})
+    if "YRINDP4" not in h58:
+        h58["YRINDP4"] = (h58["LONGWTP4"] > 0).astype(int)
+    h58 = h58[["DUPERSID", "LONGWTP4", "VARPSUP4", "VARSTRP4", "YRINDP4"]]
 
     # Panel 4 persons present in both years (defines the longitudinal file, not a domain)
     long = (h38[h38["PANEL99"] == 4].drop(columns="PANEL99")
