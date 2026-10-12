@@ -103,7 +103,7 @@ def main(meps_dir=None):
     )
 
     # Calculate estimates (domain = collapsed condition) ------------------------
-    design = dict(weight="PERWTF", domain="Condition")
+    design = {"weight": "PERWTF", "domain": "Condition"}
 
     # Totals (people, events, expenditures)
     totals = survey_estimate(all_pers, ["persons", "n_events", "pers_XP"], stat="total", **design)

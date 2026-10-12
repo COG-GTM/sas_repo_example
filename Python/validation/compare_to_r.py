@@ -23,7 +23,15 @@ def load_main(path):
     return mod.main
 
 
-def r_to_tidy(r: pd.DataFrame, by: list[str], variables: list[str]) -> pd.DataFrame:
+def r_to_tidy(r: pd.DataFrame, by: list[str]) -> pd.DataFrame:
+    """Reshape an R result CSV to tidy ``[*by, variable, estimate_r, se_r]``.
+
+    Estimate columns are discovered from the R table itself (not from the Python output),
+    so a variable missing on either side shows up as unmatched.
+    """
+    if "term" in r.columns:  # svytotal/svymean/svyratio without svyby
+        return r.rename(columns={"term": "variable", "estimate": "estimate_r", "se": "se_r"})
+    variables = [c for c in r.columns if c not in by and c != "se" and not c.startswith("se.")]
     rows = []
     for var in variables:
         se_col = f"se.{var}" if f"se.{var}" in r.columns else "se"
@@ -39,7 +47,7 @@ def r_to_tidy(r: pd.DataFrame, by: list[str], variables: list[str]) -> pd.DataFr
 
 def compare(py: pd.DataFrame, r: pd.DataFrame) -> pd.DataFrame:
     by = [c for c in py.columns if c not in ("variable", "estimate", "se")]
-    r_tidy = r_to_tidy(r, by, list(py["variable"].unique()))
+    r_tidy = r_to_tidy(r, by)
     py = py.copy()
     py[by] = py[by].astype(str)
     m = py.merge(r_tidy, on=by + ["variable"], how="outer", indicator=True)
@@ -58,6 +66,10 @@ def main():
 
     results = load_main(args.script)(args.meps_dir)
     r_files = sorted(glob.glob(f"{args.r_prefix}_[0-9][0-9]_*.csv"))
+    if len(r_files) != len(results):
+        print(f"FAIL: {len(results)} Python results but {len(r_files)} R reference files "
+              f"matching {args.r_prefix}_NN_*.csv")
+        sys.exit(1)
     ok = True
     for (name, py), r_file in zip(results.items(), r_files):
         m = compare(py, pd.read_csv(r_file, keep_default_na=False, na_values=["NA"]))

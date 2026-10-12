@@ -79,19 +79,24 @@ def read_meps(path: str, columns: Iterable[str] | None = None) -> pd.DataFrame:
 
 def _domain_labels(
     df: pd.DataFrame, domain: Sequence[str] | None, subpop: pd.Series | None
-) -> np.ndarray | None:
+) -> tuple[np.ndarray, list[tuple]] | None:
+    """Integer domain code per row (-1 = excluded) and the domain level tuples.
+
+    Rows with a missing domain value or outside ``subpop`` get code -1: they are kept in the
+    design (zero contribution) but no estimate is reported for them, like R ``svyby``.
+    """
     if domain is None and subpop is None:
         return None
     if domain:
-        parts = [df[c].map(_fmt_level).astype(str) for c in domain]
-        key = parts[0]
-        for part in parts[1:]:
-            key = key + "|" + part
+        keys = pd.Series(list(zip(*(df[c].astype(object).to_numpy() for c in domain))), index=df.index)
+        codes, uniques = pd.factorize(keys)
+        labels = [tuple(_fmt_level(v) for v in u) for u in uniques]
+        codes = np.where(df[list(domain)].isna().any(axis=1).to_numpy(), -1, codes)
     else:
-        key = pd.Series("all", index=df.index)
+        codes, labels = np.zeros(len(df), dtype=np.int64), [()]
     if subpop is not None:
-        key = key.where(np.asarray(subpop, dtype=bool), _OUT_OF_DOMAIN)
-    return key.to_numpy(dtype=object)
+        codes = np.where(np.asarray(subpop, dtype=bool), codes, -1)
+    return codes, labels
 
 
 def _fmt_level(value) -> str:
@@ -125,7 +130,7 @@ def _adjust_variance(
     return float((sums**2).sum())
 
 
-def _domain_blocks(dom: np.ndarray | None, n: int, psu_rows: np.ndarray):
+def _domain_blocks(dom: tuple[np.ndarray, list[tuple]] | None, n: int, psu_rows: np.ndarray):
     """Yield ``(label, row_index)`` for each domain.
 
     Domain estimation is done by giving out-of-domain records a zero contribution
@@ -137,13 +142,13 @@ def _domain_blocks(dom: np.ndarray | None, n: int, psu_rows: np.ndarray):
     if dom is None:
         yield None, np.arange(n)
         return
-    codes, labels = pd.factorize(dom)
+    codes, labels = dom
     order = np.argsort(codes, kind="stable")
     bounds = np.searchsorted(codes[order], np.arange(len(labels) + 1))
     for k, label in enumerate(labels):
-        if label == _OUT_OF_DOMAIN:
-            continue
-        yield label, order[bounds[k]:bounds[k + 1]]
+        idx = order[bounds[k]:bounds[k + 1]]
+        if idx.size:
+            yield label, idx
 
 
 def survey_estimate(
@@ -243,12 +248,11 @@ def survey_estimate(
                 var_ = var_ + _adjust_variance(est, y_d, w_d, x_d, s_d, lonely)
             row = {"variable": var, "estimate": float(pt), "se": float(np.sqrt(var_))}
             if domain:
-                row.update(dict(zip(domain, str(d).split("|"))))
+                row.update(dict(zip(domain, d)))
             rows.append(row)
 
-    out = pd.DataFrame(rows)
     cols = (domain or []) + ["variable", "estimate", "se"]
-    return out[cols]
+    return pd.DataFrame(rows, columns=cols)
 
 
 def wide_estimates(results: pd.DataFrame, domain: str | Sequence[str]) -> pd.DataFrame:

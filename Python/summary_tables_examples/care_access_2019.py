@@ -59,7 +59,7 @@ def main(meps_dir=None):
     # Calculate estimates -------------------------------------------------------
     # Did not receive treatment because couldn't afford it, by poverty status
     afford_vars = ["afford_ANY", "afford_MD", "afford_DN", "afford_PM"]
-    design = dict(weight="PERWT19F", domain="poverty", subpop=fyc["domain"] == 1)
+    design = {"weight": "PERWT19F", "domain": "poverty", "subpop": fyc["domain"] == 1}
 
     number = survey_estimate(fyc, afford_vars, stat="total", **design)
     percent = survey_estimate(fyc, afford_vars, stat="mean", **design)

@@ -65,3 +65,26 @@ def test_zero_estimate_domain():
     df = DATA.assign(Z=np.where(DATA.GRP == 1, 0.0, DATA.Y))
     out = survey_estimate(df, "Z", weight="WT", domain="GRP")
     assert out.loc[out.GRP == "1", ["estimate", "se"]].to_numpy().tolist() == [[0.0, 0.0]]
+
+
+def test_missing_domain_values_are_excluded_not_reported():
+    df = DATA.copy()
+    df["grp"] = pd.Series(np.where(df.index % 2 == 0, "a", "b"), dtype=object)
+    df.loc[df.index % 3 == 0, "grp"] = None
+    out = survey_estimate(df, "Y", weight="WT", stat="total", domain="grp")
+    assert sorted(out["grp"]) == ["a", "b"]
+
+
+def test_domain_values_containing_delimiter_stay_distinct():
+    df = DATA.copy()
+    df["d1"] = np.where(df.index % 2 == 0, "A|B", "A")
+    df["d2"] = np.where(df.index % 2 == 0, "C", "B|C")
+    out = survey_estimate(df, "Y", weight="WT", stat="total", domain=["d1", "d2"])
+    assert len(out) == 2
+    assert set(zip(out["d1"], out["d2"])) == {("A|B", "C"), ("A", "B|C")}
+
+
+def test_empty_subpopulation_returns_empty_frame():
+    out = survey_estimate(DATA, "Y", weight="WT", stat="mean", subpop=DATA["Y"] < -1e9)
+    assert out.empty
+    assert list(out.columns) == ["variable", "estimate", "se"]
