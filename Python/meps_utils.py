@@ -260,12 +260,14 @@ def _qrule_math(x: np.ndarray, w: np.ndarray, p: float) -> float:
     """R survey ``qrule="math"``: inverse of the weighted empirical CDF."""
     keep = w > 0
     x, w = x[keep], w[keep]
+    if not x.size:
+        return np.nan
     order = np.argsort(x, kind="stable")
     x, cumw = x[order], np.cumsum(w[order])
     total = cumw[-1]
     below = np.nonzero(cumw <= p * total)[0]
     pos = below[-1] if below.size else 0
-    if below.size and np.isclose(p - cumw[pos] / total, 0.0, atol=1e-15):
+    if below.size and p == cumw[pos] / total:
         return float(x[pos])
     return float(x[min(pos + 1, len(x) - 1)] if below.size else x[0])
 
@@ -301,6 +303,8 @@ def survey_quantile(
         if not in_dom.any():
             continue
         x, w = x_all[in_dom], w_all[in_dom]
+        if not (w > 0).any():  # all-zero-weight domain: omitted, as in survey_estimate
+            continue
         qhat = _qrule_math(x, w, quantile)
         # R degf(): PSUs minus strata among records with nonzero weight in the domain
         inset = in_dom & (w_all != 0)
