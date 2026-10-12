@@ -552,23 +552,24 @@ def survey_freq(
     row_levels = sorted(df.loc[valid, row].unique())
     tmp = df[[weight, stratum, psu] + keys].copy()
     cells = {}
-    for c in col_levels:
-        tmp[f"c:{c}"] = (df[col] == c).astype(float)
-        for r in row_levels:
-            cells[(r, c)] = f"rc:{r}|{c}"
-            tmp[cells[(r, c)]] = ((df[row] == r) & (df[col] == c)).astype(float)
+    # helper columns are named by level position so arbitrary labels (floats, "|") round-trip
+    for j, c in enumerate(col_levels):
+        tmp[f"c{j}"] = (df[col] == c).astype(float)
+        for i, r in enumerate(row_levels):
+            cells[f"rc{i}_{j}"] = (_fmt_level(r), _fmt_level(c))
+            tmp[f"rc{i}_{j}"] = ((df[row] == r) & (df[col] == c)).astype(float)
     kw = {"weight": weight, "stratum": stratum, "psu": psu, "subpop": valid, "lonely_psu": lonely_psu}
-    col_vars = [f"c:{c}" for c in col_levels]
+    col_vars = {f"c{j}": _fmt_level(c) for j, c in enumerate(col_levels)}
 
     def relabel(res):
-        res["variable"] = res["variable"].str.slice(2)
+        res["variable"] = res["variable"].map(col_vars)
         return res
 
-    wgt = relabel(survey_estimate(tmp, col_vars, stat="total", domain=keys, **kw))
-    rowp = relabel(survey_estimate(tmp, col_vars, stat="mean", domain=keys, **kw))
-    pct = survey_estimate(tmp, list(cells.values()), stat="mean", domain=layer, **kw)
-    rc = pct["variable"].str.slice(3).str.split("|", n=1, expand=True)
-    pct[row], pct["variable"] = rc[0], rc[1]
+    wgt = relabel(survey_estimate(tmp, list(col_vars), stat="total", domain=keys, **kw))
+    rowp = relabel(survey_estimate(tmp, list(col_vars), stat="mean", domain=keys, **kw))
+    pct = survey_estimate(tmp, list(cells), stat="mean", domain=layer, **kw)
+    pct[row] = pct["variable"].map(lambda v: cells[v][0])
+    pct["variable"] = pct["variable"].map(lambda v: cells[v][1])
     pct = pct[keys + ["variable", "estimate", "se"]]
     # drop empty cells (SAS prints them as missing)
     pct = pct.merge(wgt.loc[wgt["estimate"] > 0, keys + ["variable"]].astype(str), on=keys + ["variable"]) \
