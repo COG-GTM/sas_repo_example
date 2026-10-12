@@ -33,8 +33,15 @@ _PARAMS = {"total": PopParam.total, "mean": PopParam.mean, "ratio": PopParam.rat
 
 
 def meps_path(filename: str, meps_dir: str | None = None) -> str:
-    """Return the full path of a MEPS file in ``meps_dir`` (default: $MEPS_DIR or C:/MEPS)."""
-    return str(Path(meps_dir or MEPS_DIR) / filename)
+    """Return the full path of a MEPS file in ``meps_dir`` (default: $MEPS_DIR or C:/MEPS).
+
+    Older MEPS zips extract upper-case names (``H38.SSP``); fall back to that spelling when the
+    lower-case file does not exist (matters on case-sensitive file systems).
+    """
+    path = Path(meps_dir or MEPS_DIR) / filename
+    if not path.exists() and (path.parent / filename.upper()).exists():
+        path = path.parent / filename.upper()
+    return str(path)
 
 
 def read_meps(path: str, columns: Iterable[str] | None = None) -> pd.DataFrame:
