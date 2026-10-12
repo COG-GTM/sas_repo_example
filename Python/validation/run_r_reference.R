@@ -4,12 +4,12 @@
 #
 # Usage: Rscript run_r_reference.R <script.R> <meps_dir> <out_prefix>
 #  - "C:/MEPS" paths in the script are replaced by <meps_dir>
-#  - install.packages()/install_github() calls are skipped
+#  - install.packages()/install_github()/library(devtools) calls are skipped
 args <- commandArgs(trailingOnly = TRUE)
 src <- readLines(args[1])
 src <- gsub("C:/MEPS", args[2], src, fixed = TRUE)
 src <- gsub("C:\\\\MEPS", args[2], src)
-src <- src[!grepl("install.packages|install_github", src)]
+src <- src[!grepl("install.packages|install_github|library\\(devtools\\)", src)]
 .captured <- list(); .depth <- 0
 .wrap <- function(fname) {
   f <- getExportedValue("survey", fname)
