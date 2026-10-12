@@ -1,0 +1,7 @@
+result,domain,variable,estimate,se
+pct_jtpain,,any_jtpain1 Yes,0.444196,0.004322
+pct_jtpain,,any_jtpain2 No,0.555804,0.004322
+mean_exp_by_jtpain,1 Yes,totexp,10071,215.318322
+mean_exp_by_jtpain,1 Yes,totslf,1172.617288,28.821391
+mean_exp_by_jtpain,2 No,totexp,3936.073245,109.344333
+mean_exp_by_jtpain,2 No,totslf,611.072872,19.220511

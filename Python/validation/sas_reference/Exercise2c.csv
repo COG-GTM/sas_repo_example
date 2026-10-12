@@ -1,0 +1,9 @@
+result,domain,variable,estimate,se
+mean_sub,,n_purchase,4.295530,0.112088
+mean_sub,,tot,252.771646,18.758064
+mean_sub,,oop,55.007636,5.887614
+mean_sub,,third_payer,197.764010,17.084372
+total_sub,,n_purchase,124601298,5391816
+total_sub,,tot,7332197904,637133876
+total_sub,,oop,1595617538,181942027
+total_sub,,third_payer,5736580366,563384640

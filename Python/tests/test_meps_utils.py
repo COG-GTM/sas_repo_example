@@ -110,3 +110,50 @@ def test_quantile_skips_zero_weight_domain_and_uses_exact_boundary():
     x, w = np.array([100.0, 200.0]), np.array([499999999999999.0, 500000000000001.0])
     assert _qrule_math(x, w, 0.5) == 200.0
     assert _qrule_math(np.array([1.0, 2.0]), np.array([1.0, 1.0]), 0.5) == 1.0
+
+
+def test_survey_glm_matches_r_svyglm_quasibinomial():
+    # Reference: R survey 4.1.1, lonely.psu="adjust" (stratum 6 has one PSU)
+    #   summary(svyglm(Y ~ AGE + as.factor(G), design = subset(des, SUB), family = quasibinomial))
+    from meps_utils import survey_glm
+    d = pd.read_csv(Path(__file__).with_name("glm_synth_data.csv"))
+    res = survey_glm(d, "Y", weight="WT", numeric=["AGE"], factors=["G"], subpop=d["SUB"])
+    r_est = [-2.43955357154747, 0.0382180683236095, 0.893380372895196, -0.104051785098702]
+    r_se = [1.30266909781822, 0.018195773254631, 0.570525652199618, 0.456818446970699]
+    assert res["variable"].tolist() == ["(Intercept)", "AGE", "as.factor(G)2", "as.factor(G)3"]
+    np.testing.assert_allclose(res["estimate"], r_est, rtol=1e-7)
+    np.testing.assert_allclose(res["se"], r_se, rtol=1e-6)
+
+
+def test_adjust_domain_lonely_matches_r():
+    # Reference: R survey 4.1.1 with options(survey.lonely.psu = "adjust",
+    #   survey.adjust.domain.lonely = TRUE); svyby(~Y, ~D, des, svymean / svytotal)
+    df = pd.DataFrame({
+        "VARSTR": np.repeat([1, 2, 3], 6),
+        "VARPSU": np.tile(np.repeat([1, 2], 3), 3),
+        "WT": [10, 20, 30, 15, 25, 35, 12, 22, 32, 18, 28, 38, 11, 21, 31, 17, 27, 37],
+        "Y": [1, 4, 2, 5, 3, 6, 2, 7, 1, 8, 3, 9, 4, 2, 6, 1, 5, 3],
+        "D": list("AABBBBABABABAAABBB"),
+    })
+    kw = {"weight": "WT", "domain": "D", "adjust_domain_lonely": True}
+    mean = survey_estimate(df, "Y", stat="mean", **kw).sort_values("D")
+    total = survey_estimate(df, "Y", stat="total", **kw).sort_values("D")
+    np.testing.assert_allclose(mean["estimate"], [3.04242424242424, 5.01136363636364], rtol=1e-12)
+    np.testing.assert_allclose(mean["se"], [0.830719154021954, 1.02005850634226], rtol=1e-12)
+    np.testing.assert_allclose(total["estimate"], [502, 1323], rtol=1e-12)
+    np.testing.assert_allclose(total["se"], [406.142832018491, 581.860808097607], rtol=1e-12)
+
+
+def test_survey_glm_drops_incomplete_cases_like_r():
+    # R: same design with AGE[c(3, 40, 77)] <- NA and G[c(5, 90)] <- NA (1-based rows);
+    # svyglm drops incomplete rows from the model frame
+    from meps_utils import survey_glm
+    d = pd.read_csv(Path(__file__).with_name("glm_synth_data.csv"))
+    d.loc[[2, 39, 76], "AGE"] = np.nan
+    d.loc[[4, 89], "G"] = np.nan
+    res = survey_glm(d, "Y", weight="WT", numeric=["AGE"], factors=["G"], subpop=d["SUB"])
+    assert res["variable"].tolist() == ["(Intercept)", "AGE", "as.factor(G)2", "as.factor(G)3"]
+    np.testing.assert_allclose(
+        res["estimate"], [-2.34953696063341, 0.0357501514908902, 0.941174925467802, -0.0495565828023312], rtol=1e-7)
+    np.testing.assert_allclose(
+        res["se"], [1.29192260476308, 0.0175922479843676, 0.58541732494744, 0.478125775553552], rtol=1e-5)

@@ -1,0 +1,6 @@
+result,domain,variable,estimate,se
+mean_exp,,TOTEXP16,"5,005.64",116.95824
+total_exp,,TOTEXP16,"1,617,531,007,314","50,638,644,399"
+mean_exp_has_exp,,TOTEXP16,5908.3,133.8208
+mean_exp_has_exp_by_age,<65,TOTEXP16,4615.1,137.6071
+mean_exp_has_exp_by_age,65+,TOTEXP16,11780.8,429.1720

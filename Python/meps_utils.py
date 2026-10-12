@@ -131,6 +131,32 @@ def _adjust_variance(
     return float((sums**2).sum())
 
 
+def _domain_lonely_variance(
+    est: TaylorEstimator,
+    y: np.ndarray,
+    w: np.ndarray,
+    x: np.ndarray,
+    stratum: np.ndarray,
+    psu: np.ndarray,
+    n_dom: int,
+    n_psu: pd.Series,
+) -> float:
+    """Extra variance under R ``survey.adjust.domain.lonely = TRUE`` with "adjust".
+
+    For a stratum with n_h > 1 PSUs in which the domain (the first ``n_dom`` rows) has
+    records in only one PSU, R skips centering, giving T^2 * n_h / (n_h - 1) instead of
+    the usual T^2 (T = that PSU's score total). Returns the difference, T^2 / (n_h - 1).
+    """
+    dom_psus = pd.Series(psu[:n_dom]).groupby(stratum[:n_dom]).nunique()
+    single = dom_psus.index[(dom_psus == 1).to_numpy() & (n_psu.reindex(dom_psus.index) > 1).to_numpy()]
+    if not len(single):
+        return 0.0
+    scores = est._score_variable(y, w, x)[:, 0]
+    mask = np.isin(stratum, single)
+    totals = pd.Series(scores[mask]).groupby(stratum[mask]).sum()
+    return float((totals**2 / (n_psu.reindex(totals.index) - 1)).sum())
+
+
 def _domain_blocks(dom: tuple[np.ndarray, list[tuple]] | None, n: int, psu_rows: np.ndarray):
     """Yield ``(label, row_index)`` for each domain.
 
@@ -163,6 +189,7 @@ def survey_estimate(
     subpop: pd.Series | None = None,
     denominator: str | None = None,
     lonely_psu: str = "adjust",
+    adjust_domain_lonely: bool = False,
 ) -> pd.DataFrame:
     """Design-based survey estimates with Taylor-series linearization (samplics).
 
@@ -183,6 +210,10 @@ def survey_estimate(
         but excluded from the output.
     lonely_psu : ``"adjust"`` (default, matches R ``options(survey.lonely.psu = "adjust")``),
         ``"remove"`` (skip singleton strata, as SAS does), or ``"fail"``.
+    adjust_domain_lonely : also treat strata where a domain/subpopulation has a single PSU
+        as lonely (R ``options(survey.adjust.domain.lonely = TRUE)``). With
+        ``lonely_psu="adjust"`` that PSU's score total is not centered, which inflates the
+        stratum's contribution by n_h / (n_h - 1).
 
     Returns
     -------
@@ -215,6 +246,7 @@ def survey_estimate(
 
     # one zero-weight placeholder record per PSU (see _domain_blocks)
     psu_rows = pd.Series(psu_id).drop_duplicates().index.to_numpy()
+    n_psu = pd.Series(psu_id).groupby(strat).nunique()
     blocks = list(_domain_blocks(dom, len(df), psu_rows))
     has_x = denominator is not None
 
@@ -247,6 +279,8 @@ def survey_estimate(
             )
             if lonely.size and lonely_psu == "adjust":
                 var_ = var_ + _adjust_variance(est, y_d, w_d, x_d, s_d, lonely)
+            if adjust_domain_lonely and lonely_psu == "adjust" and d is not None:
+                var_ = var_ + _domain_lonely_variance(est, y_d, w_d, x_d, s_d, p_d, n_dom, n_psu)
             row = {"variable": var, "estimate": float(pt), "se": float(np.sqrt(var_))}
             if domain:
                 row.update(dict(zip(domain, d)))
@@ -343,3 +377,123 @@ def wide_estimates(results: pd.DataFrame, domain: str | Sequence[str]) -> pd.Dat
     wide = results.pivot_table(index=domain, columns="variable", values=["estimate", "se"])
     wide.columns = [f"{v}" if s == "estimate" else f"se.{v}" for s, v in wide.columns]
     return wide.reset_index()
+
+
+# Regression ------------------------------------------------------------------
+
+
+def _score_total_vcov(scores: np.ndarray, stratum: np.ndarray, psu: np.ndarray, lonely_psu: str) -> np.ndarray:
+    """With-replacement (Taylor) covariance of the population total of row-level scores.
+
+    Equivalent to R ``svyrecvar`` for a one-stage design (``nest=TRUE``, no fpc):
+    PSU totals are centered within stratum and scaled by n_h / (n_h - 1). Singleton
+    strata follow ``survey.lonely.psu``: "adjust" centers them at the mean of all PSU
+    totals, "remove" drops them, "fail" raises.
+    """
+    tot = pd.DataFrame(scores).groupby([stratum, psu]).sum()
+    strata = tot.index.get_level_values(0).to_numpy()
+    z = tot.to_numpy()
+    grand = z.mean(axis=0)
+    p = z.shape[1]
+    vcov = np.zeros((p, p))
+    for s in pd.unique(strata):
+        zs = z[strata == s]
+        n_h = len(zs)
+        if n_h == 1:
+            if lonely_psu == "fail":
+                raise ValueError(f"stratum {s} has only one PSU")
+            if lonely_psu == "adjust":
+                d = zs - grand
+                vcov += d.T @ d
+            continue
+        d = zs - zs.mean(axis=0)
+        vcov += n_h / (n_h - 1) * (d.T @ d)
+    return vcov
+
+
+def _irls_logit(x: np.ndarray, y: np.ndarray, w: np.ndarray, max_iter: int) -> tuple[np.ndarray, np.ndarray]:
+    """Weighted logistic fit replicating R ``glm.fit`` (as called by ``svyglm``).
+
+    Mirrors R step for step so results agree to rounding: weights rescaled to mean 1,
+    ``mustart = (w*y + 0.5)/(w + 1)``, convergence on relative deviance change < 1e-8,
+    and R's final working weights (from the start of the last iteration). Returns the
+    coefficients and the per-row influence scores ``estfun %*% (X'WX)^-1``.
+    """
+    pw = w / w.mean()
+    good = pw > 0
+    xg, yg, pwg = x[good], y[good], pw[good]
+
+    def deviance(mu):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            d = np.where(yg > 0, yg * np.log(yg / mu), 0) + np.where(yg < 1, (1 - yg) * np.log((1 - yg) / (1 - mu)), 0)
+        return 2 * np.sum(pwg * d)
+
+    mu = (pwg * yg + 0.5) / (pwg + 1)
+    eta = np.log(mu / (1 - mu))
+    dev_old = deviance(mu)
+    for _ in range(max_iter):
+        mu_eta = mu * (1 - mu)
+        z = eta + (yg - mu) / mu_eta
+        wts = pwg * mu_eta
+        sw = np.sqrt(wts)
+        q, r = np.linalg.qr(xg * sw[:, None])  # least squares via QR, as R's lm.fit
+        beta = np.linalg.solve(r, q.T @ (sw * z))
+        eta = xg @ beta
+        mu = 1 / (1 + np.exp(-eta))
+        dev = deviance(mu)
+        if abs(dev - dev_old) / (abs(dev) + 0.1) < 1e-8:
+            break
+        dev_old = dev
+    scores = np.zeros_like(x)
+    r_inv = np.linalg.inv(r)
+    scores[good] = (xg * (wts * (yg - mu) / (mu * (1 - mu)))[:, None]) @ (r_inv @ r_inv.T)
+    return beta, scores
+
+
+def survey_glm(
+    df: pd.DataFrame,
+    outcome: str,
+    weight: str,
+    numeric: Sequence[str] = (),
+    factors: Sequence[str] = (),
+    stratum: str = "VARSTR",
+    psu: str = "VARPSU",
+    subpop: pd.Series | None = None,
+    lonely_psu: str = "adjust",
+    max_iter: int = 50,
+) -> pd.DataFrame:
+    """Design-based logistic regression, matching R ``svyglm(..., family = quasibinomial)``.
+
+    ``factors`` are expanded to treatment dummies (lowest level as reference) named as R
+    does for ``as.factor(X)``, e.g. ``as.factor(SEX)2``. Rows outside ``subpop`` keep their
+    stratum/PSU in the design with zero weight (R ``subset(design, ...)``). Standard
+    errors use the linearization sandwich; t tests use ``degf(design) + 1 - p`` df, as in
+    ``summary.svyglm``. Returns columns ``variable, estimate, se, t, p``.
+    """
+    keep = np.ones(len(df), dtype=bool) if subpop is None else subpop.to_numpy(dtype=bool)
+    # complete cases only (R's model frame drops NAs); dropped rows stay in the design with weight 0
+    keep = keep & df[[outcome, *numeric, *factors]].notna().all(axis=1).to_numpy()
+    w = np.where(keep, df[weight].to_numpy(dtype=float), 0.0)
+    cols, names = [np.ones(len(df))], ["(Intercept)"]
+    for v in numeric:
+        cols.append(np.where(keep, df[v].to_numpy(dtype=float), 0.0))
+        names.append(v)
+    for f in factors:
+        levels = sorted(pd.unique(df.loc[keep & (w > 0), f]))
+        for lev in levels[1:]:
+            cols.append((df[f] == lev).to_numpy(dtype=float))
+            names.append(f"as.factor({f}){_fmt_level(lev)}")
+    x = np.column_stack(cols)
+    y = np.where(keep, df[outcome].to_numpy(dtype=float), 0.0)
+
+    beta, scores = _irls_logit(x, y, w, max_iter)
+    strata = df[stratum].astype(str).to_numpy(dtype=object)
+    psu_id = df[psu].astype(str).to_numpy(dtype=object)
+    vcov = _score_total_vcov(scores, strata, psu_id, lonely_psu)
+    se = np.sqrt(np.diag(vcov))
+
+    inset = w != 0
+    degf = len(set(zip(strata[inset], psu_id[inset]))) - len(set(strata[inset]))
+    t = beta / se
+    p = 2 * stats.t.sf(np.abs(t), degf + 1 - len(beta))
+    return pd.DataFrame({"variable": names, "estimate": beta, "se": se, "t": t, "p": p})

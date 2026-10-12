@@ -1,0 +1,11 @@
+result,domain,variable,estimate,se
+mean_flu_shot,,flu_shot,0.420951,0.006389
+glm_flu_shot,,(Intercept),-2.1417,0.0814
+glm_flu_shot,,AGELAST,0.0313,0.00121
+glm_flu_shot,,as.factor(SEX)2,0.2729,0.0334
+glm_flu_shot,,as.factor(RACETHX)4,0.4255,0.0990
+glm_flu_shot,,as.factor(RACETHX)3,-0.0661,0.0800
+glm_flu_shot,,as.factor(RACETHX)5,0.2033,0.1099
+glm_flu_shot,,as.factor(RACETHX)2,0.3791,0.0611
+glm_flu_shot,,as.factor(INSCOV18)2,-0.1592,0.0447
+glm_flu_shot,,as.factor(INSCOV18)3,-1.3661,0.0868

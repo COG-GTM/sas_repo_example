@@ -4,12 +4,16 @@
 #
 # Usage: Rscript run_r_reference.R <script.R> <meps_dir> <out_prefix>
 #  - "C:/MEPS" paths in the script are replaced by <meps_dir>
-#  - install.packages()/install_github() calls are skipped
+#  - install.packages()/install_github()/library(devtools) calls are skipped
+#  - survey, foreign, haven, dplyr, and MEPS (if installed) are attached first
 args <- commandArgs(trailingOnly = TRUE)
 src <- readLines(args[1])
 src <- gsub("C:/MEPS", args[2], src, fixed = TRUE)
 src <- gsub("C:\\\\MEPS", args[2], src)
-src <- src[!grepl("install.packages|install_github", src)]
+src <- src[!grepl("install.packages|install_github|library\\(devtools\\)", src)]
+# Some workshop scripts leave their library() calls commented out; attach them here
+for (pkg in c("survey", "foreign", "haven", "dplyr", "MEPS"))
+  suppressMessages(suppressWarnings(require(pkg, character.only = TRUE, quietly = TRUE)))
 .captured <- list(); .depth <- 0
 .wrap <- function(fname) {
   f <- getExportedValue("survey", fname)

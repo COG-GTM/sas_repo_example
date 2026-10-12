@@ -29,6 +29,8 @@ def r_to_tidy(r: pd.DataFrame, by: list[str]) -> pd.DataFrame:
     Estimate columns are discovered from the R table itself (not from the Python output),
     so a variable missing on either side shows up as unmatched.
     """
+    if "Std. Error" in r.columns:  # summary(svyglm) coefficient table
+        r = r.rename(columns={"Estimate": "estimate", "Std. Error": "se"})[["term", "estimate", "se"]]
     if "term" in r.columns:  # svytotal/svymean/svyratio without svyby
         return r.rename(columns={"term": "variable", "estimate": "estimate_r", "se": "se_r"})
     variables = [c for c in r.columns if c not in by and c != "se" and not c.startswith("se.")]
@@ -46,7 +48,7 @@ def r_to_tidy(r: pd.DataFrame, by: list[str]) -> pd.DataFrame:
 
 
 def compare(py: pd.DataFrame, r: pd.DataFrame) -> pd.DataFrame:
-    by = [c for c in py.columns if c not in ("variable", "estimate", "se")]
+    by = [c for c in py.columns if c not in ("variable", "estimate", "se", "t", "p")]
     r_tidy = r_to_tidy(r, by)
     py = py.copy()
     py[by] = py[by].astype(str)

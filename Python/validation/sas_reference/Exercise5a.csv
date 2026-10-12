@@ -1,0 +1,4 @@
+result,domain,variable,estimate,se
+mean_fam,,FAMSIZE,2.205817,0.019593
+mean_fam,,FAMOOP,1328.594367,32.955419
+mean_fam,,FAMINC,64940,953.000134

@@ -1,0 +1,17 @@
+result,domain,variable,estimate,se
+mean_all,,tot,31.860337,3.744940
+mean_all,,n_purchase,0.095843,0.006879
+mean_all,,oop,1.714299,0.431995
+mean_all,,third_payer,30.146038,3.643129
+total_all,,tot,10240653024,1205384106
+total_all,,n_purchase,30806048,2267105
+total_all,,oop,551015438,138005747
+total_all,,third_payer,9689637586,1174371769
+mean_sub,,tot,2293.912000,226.463234
+mean_sub,,n_purchase,6.900572,0.302250
+mean_sub,,oop,123.427766,30.710067
+mean_sub,,third_payer,2170.484234,221.282618
+total_sub,,tot,10240653024,1205384106
+total_sub,,n_purchase,30806048,2267105
+total_sub,,oop,551015438,138005747
+total_sub,,third_payer,9689637586,1174371769
