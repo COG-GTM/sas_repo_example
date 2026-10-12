@@ -110,3 +110,16 @@ def test_quantile_skips_zero_weight_domain_and_uses_exact_boundary():
     x, w = np.array([100.0, 200.0]), np.array([499999999999999.0, 500000000000001.0])
     assert _qrule_math(x, w, 0.5) == 200.0
     assert _qrule_math(np.array([1.0, 2.0]), np.array([1.0, 1.0]), 0.5) == 1.0
+
+
+def test_survey_glm_matches_r_svyglm_quasibinomial():
+    # Reference: R survey 4.1.1, lonely.psu="adjust" (stratum 6 has one PSU)
+    #   summary(svyglm(Y ~ AGE + as.factor(G), design = subset(des, SUB), family = quasibinomial))
+    from meps_utils import survey_glm
+    d = pd.read_csv(Path(__file__).with_name("glm_synth_data.csv"))
+    res = survey_glm(d, "Y", weight="WT", numeric=["AGE"], factors=["G"], subpop=d["SUB"])
+    r_est = [-2.43955357154747, 0.0382180683236095, 0.893380372895196, -0.104051785098702]
+    r_se = [1.30266909781822, 0.018195773254631, 0.570525652199618, 0.456818446970699]
+    assert res["variable"].tolist() == ["(Intercept)", "AGE", "as.factor(G)2", "as.factor(G)3"]
+    np.testing.assert_allclose(res["estimate"], r_est, rtol=1e-7)
+    np.testing.assert_allclose(res["se"], r_se, rtol=1e-6)
