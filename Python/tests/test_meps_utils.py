@@ -99,3 +99,14 @@ def test_quantile_matches_r_svyquantile():
     assert len(merged) == len(expected)
     np.testing.assert_allclose(merged["estimate_py"], merged["estimate_r"], rtol=1e-10)
     np.testing.assert_allclose(merged["se_py"], merged["se_r"], rtol=1e-8)
+
+
+def test_quantile_skips_zero_weight_domain_and_uses_exact_boundary():
+    df = pd.DataFrame({"VARSTR": [1, 1, 1, 1], "VARPSU": [1, 2, 1, 2], "WT": [1.0, 2.0, 0.0, 0.0],
+                       "Y": [1.0, 2.0, 3.0, 4.0], "D": ["A", "A", "B", "B"]})
+    res = survey_quantile(df, "Y", weight="WT", domain="D")
+    assert res["D"].tolist() == ["A"]
+    from meps_utils import _qrule_math
+    x, w = np.array([100.0, 200.0]), np.array([499999999999999.0, 500000000000001.0])
+    assert _qrule_math(x, w, 0.5) == 200.0
+    assert _qrule_math(np.array([1.0, 2.0]), np.array([1.0, 1.0]), 0.5) == 1.0
