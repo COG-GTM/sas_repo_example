@@ -12,6 +12,7 @@ See Python/README.md for details.
 
 from __future__ import annotations
 
+import io
 import os
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -62,7 +63,18 @@ def read_meps(path: str, columns: Iterable[str] | None = None) -> pd.DataFrame:
     if ext == ".sas7bdat":
         df = pd.read_sas(path, format="sas7bdat", encoding="latin-1")
     elif ext in (".ssp", ".xpt", ".xport"):
-        df = pd.read_sas(path, format="xport", encoding="latin-1")
+        try:
+            df = pd.read_sas(path, format="xport", encoding="latin-1")
+        except ValueError:
+            # some VM/CMS-built transport files (e.g. h56) have junk in the last 2 bytes of each
+            # header record, which pandas rejects; blank them and retry
+            raw = bytearray(Path(path).read_bytes())
+            for pos in range(0, len(raw), 80):
+                if raw[pos:pos + 20] == b"HEADER RECORD*******":
+                    raw[pos + 78:pos + 80] = b"  "
+                    if raw[pos + 20:pos + 23] == b"OBS":
+                        break
+            df = pd.read_sas(io.BytesIO(bytes(raw)), format="xport", encoding="latin-1")
     elif ext == ".dta":
         df = pd.read_stata(path, convert_categoricals=False)
     else:
