@@ -558,3 +558,52 @@ def survey_freq(
     for res in (pct, rowp):
         res[["estimate", "se"]] *= 100
     return {"wgt_freq": wgt, "percent": pct, "row_percent": rowp}
+
+
+def survey_reg(
+    df: pd.DataFrame,
+    outcome: str,
+    weight: str,
+    numeric: Sequence[str] = (),
+    factors: Sequence[str] = (),
+    stratum: str = "VARSTR",
+    psu: str = "VARPSU",
+    subpop: pd.Series | None = None,
+    lonely_psu: str = "adjust",
+    df_adjust: bool = True,
+) -> pd.DataFrame:
+    """Design-based linear regression, like SAS ``PROC SURVEYREG`` (``MODEL y = x``).
+
+    Weighted least squares with a linearization sandwich covariance. ``df_adjust=True``
+    applies SAS's default ``VADJUST=DF`` factor (n-1)/(n-p), n = records with positive
+    weight; use ``df_adjust=False`` to match R ``svyglm(family = gaussian)``. Missing
+    values and ``subpop``/``factors`` are handled as in :func:`survey_glm`.
+    """
+    keep = np.ones(len(df), dtype=bool) if subpop is None else subpop.to_numpy(dtype=bool)
+    keep = keep & df[[outcome, *numeric, *factors]].notna().all(axis=1).to_numpy()
+    w = np.where(keep, df[weight].to_numpy(dtype=float), 0.0)
+    cols, names = [np.ones(len(df))], ["Intercept"]
+    for v in numeric:
+        cols.append(np.where(keep, df[v].to_numpy(dtype=float), 0.0))
+        names.append(v)
+    for f in factors:
+        for lev in sorted(pd.unique(df.loc[keep & (w > 0), f]))[1:]:
+            cols.append((df[f] == lev).to_numpy(dtype=float))
+            names.append(f"as.factor({f}){_fmt_level(lev)}")
+    x = np.column_stack(cols)
+    y = np.where(keep, df[outcome].to_numpy(dtype=float), 0.0)
+    xtwx_inv = np.linalg.inv(x.T @ (x * w[:, None]))
+    beta = xtwx_inv @ (x.T @ (w * y))
+    scores = (x * (w * (y - x @ beta))[:, None]) @ xtwx_inv
+    strata = df[stratum].astype(str).to_numpy(dtype=object)
+    psu_id = df[psu].astype(str).to_numpy(dtype=object)
+    vcov = _score_total_vcov(scores, strata, psu_id, lonely_psu)
+    if df_adjust:
+        n, p = int((w > 0).sum()), len(beta)
+        vcov *= (n - 1) / (n - p)
+    se = np.sqrt(np.diag(vcov))
+    inset = w != 0
+    degf = len(set(zip(strata[inset], psu_id[inset]))) - len(set(strata[inset]))
+    t = beta / se
+    return pd.DataFrame({"variable": names, "estimate": beta, "se": se, "t": t,
+                         "p": 2 * stats.t.sf(np.abs(t), degf)})
