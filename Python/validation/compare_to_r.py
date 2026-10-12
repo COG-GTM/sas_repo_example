@@ -39,7 +39,10 @@ def r_to_tidy(r: pd.DataFrame, by: list[str], variables: list[str]) -> pd.DataFr
 
 def compare(py: pd.DataFrame, r: pd.DataFrame) -> pd.DataFrame:
     by = [c for c in py.columns if c not in ("variable", "estimate", "se")]
-    r_tidy = r_to_tidy(r, by, list(py["variable"].unique()))
+    if "term" in r.columns:  # svytotal/svymean/svyratio without svyby
+        r_tidy = r.rename(columns={"term": "variable", "estimate": "estimate_r", "se": "se_r"})
+    else:
+        r_tidy = r_to_tidy(r, by, list(py["variable"].unique()))
     py = py.copy()
     py[by] = py[by].astype(str)
     m = py.merge(r_tidy, on=by + ["variable"], how="outer", indicator=True)

@@ -251,6 +251,21 @@ def survey_estimate(
     return out[cols]
 
 
+def add_dummies(df: pd.DataFrame, col: str, levels: Sequence | None = None) -> list[str]:
+    """Add 0/1 indicator columns ``f"{col}{level}"`` for each level of a categorical column.
+
+    Equivalent to a factor variable in R ``svytotal(~factor)`` (column names match R's) and to
+    a class variable in SAS ``PROC SURVEYMEANS``. Returns the new column names.
+    """
+    levels = list(levels) if levels is not None else list(pd.Series(df[col]).dropna().unique())
+    names = []
+    for level in levels:
+        name = f"{col}{level}"
+        df[name] = (df[col] == level).astype(int)
+        names.append(name)
+    return names
+
+
 def wide_estimates(results: pd.DataFrame, domain: str | Sequence[str]) -> pd.DataFrame:
     """Pivot ``survey_estimate`` output to one row per domain (like R ``svyby`` output)."""
     domain = [domain] if isinstance(domain, str) else list(domain)
