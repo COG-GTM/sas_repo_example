@@ -1,0 +1,8 @@
+result,domain,variable,estimate,se
+mean_fam,,FAMSZEYR,2.375140,0.017294
+mean_fam,,FAMTOT01,6029.086613,131.293064
+mean_famtot_by_size,1,FAMTOT01,4190.751776,215.326050
+mean_famtot_by_size,2,FAMTOT01,7404.600169,277.154001
+mean_famtot_by_size,3,FAMTOT01,6616.021405,268.455865
+mean_famtot_by_size,4,FAMTOT01,6075.289280,278.081209
+mean_famtot_by_size,5+,FAMTOT01,7518.070399,389.183667

@@ -134,6 +134,61 @@ coefficients are themselves only converged to about that level.
 * <b>Figures.</b> `ggplot_example.py` draws the bar chart with matplotlib (optional
   dependency); only the plotted percentages are validated.
 
+## Older exercises (1996-2006)
+
+There are no R versions of the older programs, so each port is compared with the values printed
+in the SAS/SUDAAN listing in the matching PDF (reference values in
+[validation/sas_reference/older](validation/sas_reference/older)), with
+`compare_to_sas.py` (a value passes when it agrees to the printed precision).
+
+| Script | Data | Printed values reproduced | Result |
+| ------ | ---- | ------------------------: | :----: |
+| E1 | h60 | 24 / 26 | see below |
+| E2 | h12, h20, h28, h38, h36u23 | 28 / 36 | see below |
+| E3 | h38, h50, h58 | 4 / 12 | see below |
+| E4 | h60 (family level) | 14 / 14 | PASS |
+| E5 | h59d, h59g (events) | 4 / 4 | PASS |
+| E6 | h97 | 88 / 88 | PASS |
+| E7 | h97 (SURVEYFREQ) | 420 / 420 | PASS |
+| E8 | h97, h94d | 72 / 72 | PASS |
+| M1 | h97 | 8 / 8 | PASS |
+| M2 | h97 | 4 / 4 | PASS |
+| M6 | h97 (diabetes care weight) | 36 / 36 | PASS |
+| M9 | h97 | 36 / 36 | PASS |
+| M11 | h105 (parent-child links) | 22 / 22 | PASS |
+| L1 | h56, h60 (SUDAAN) | 18 / 18 | PASS |
+| L3 | h59g, h60 (SUDAAN) | 16 / 16 | PASS |
+| L4 | h61, h60 (SUDAAN) | 68 / 68 | PASS |
+| L5 | h61, h59if1, h59a/e/f/g, h60 | 78 / 78 | PASS |
+| EM1 | h70 (replaces H62) | -- | see below |
+| EM2 | h63, h70 (replaces H62) | unweighted counts all match | see below |
+| M3, M4, M5, M7, M8, M10, L1A | -- | PDF has only the SAS log | ran, not compared |
+
+### Older exercises known issues and differences
+
+* <b>Zero weights and singleton PSUs (E5, E8, M6, M10, M11, L1).</b> SAS and SUDAAN drop
+  records with nonpositive weights before computing variances, and SAS then leaves out strata
+  that have a single PSU. These ports drop nonpositive weights and use `lonely_psu="remove"`,
+  which reproduces SAS exactly (e.g. E5 inpatient SE 263.362555; `"adjust"` gives 263.488).
+* <b>E1</b>: the two non-matching values are SEs for the 65-90 domain, off in the 6th
+  significant digit (`TOTEXP01` 239.389968 vs 239.390469; `ANY_EXP` 0.354136 vs 0.354127).
+  That domain has two strata with a single PSU; the overall design has none.
+* <b>E2</b>: all point estimates match. The SAS program used an old pooled linkage file
+  (`STRA9602`/`PSU9602`) that MEPS no longer distributes; with the current `h36u23`
+  (`STRA9623`/`PSU9623`) SEs differ by up to 0.06%.
+* <b>E3</b>: the current `h58` panel 4 longitudinal file has `LONGWT` (not `LONGWTP4`) and no
+  `YRINDP4`; the port uses `LONGWT` and positive weights as the in-scope flag. Estimates
+  differ from the listing, which was produced from an earlier release of the files.
+* <b>EM1 / EM2</b>: the SAS programs read `H62`, a preliminary 2002 file with preliminary
+  weights (`PERWT02P`) that is no longer distributed. The ports use the final 2002 file (`h70`,
+  `PERWT02F`). EM2's unweighted counts all match the listing; its weighted split is 70.0% /
+  30.0% vs SAS 69.9% / 30.1%. EM1's mean health status is 2.1736 (SE 0.0123) vs SAS 2.1776
+  (SE 0.0123), and the quartile means are within 0.01 of the listing.
+* <b>M10</b> read `H67DV1X`, an internal version of the 2002 inpatient file; the port uses the
+  public `h67d`. The PDF prints no results.
+* <b>L2</b> (MEPS-NHIS linkage) is not ported: it needs the NHIS-MEPS link file, which is not
+  a public use file.
+
 ## Re-running the validation
 
 Requires R with the `survey`, `dplyr`, `tidyr`, `readr`, `haven`, and `foreign` packages, the

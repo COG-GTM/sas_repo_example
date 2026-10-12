@@ -17,7 +17,7 @@ import pytest
 
 HERE = Path(__file__).resolve().parent
 sys.path.append(str(HERE.parent))
-from meps_utils import survey_estimate, survey_quantile
+from meps_utils import survey_estimate, survey_freq, survey_quantile
 
 DATA = pd.read_csv(HERE / "synthetic_design.csv")
 EXPECTED = pd.read_csv(HERE / "synthetic_expected_r.csv", dtype={"level": str})
@@ -157,3 +157,19 @@ def test_survey_glm_drops_incomplete_cases_like_r():
         res["estimate"], [-2.34953696063341, 0.0357501514908902, 0.941174925467802, -0.0495565828023312], rtol=1e-7)
     np.testing.assert_allclose(
         res["se"], [1.29192260476308, 0.0175922479843676, 0.58541732494744, 0.478125775553552], rtol=1e-5)
+
+
+def test_survey_freq_labels_round_trip():
+    """Float row levels and labels containing '|' keep their percent cells."""
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame({"VARSTR": np.repeat([1, 2, 3], 20), "VARPSU": np.tile([1, 2], 30),
+                       "W": rng.uniform(1, 3, 60), "R": rng.choice([1.0, 2.0], 60),
+                       "C": rng.choice(["YES|A", "NO"], 60)})
+    out = survey_freq(df, "R", "C", "W")
+    keys = ["R", "variable"]
+    assert set(out["percent"]["R"]) == {"1", "2"}
+    assert set(out["percent"]["variable"]) == {"YES|A", "NO"}
+    merged = out["percent"].merge(out["wgt_freq"].astype({"R": str}), on=keys, suffixes=("", "_w"))
+    assert len(merged) == len(out["wgt_freq"]) == 4
+    share = merged["estimate_w"] / merged["estimate_w"].sum() * 100
+    assert np.allclose(merged["estimate"], share)

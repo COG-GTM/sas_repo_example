@@ -1,0 +1,11 @@
+result,domain,variable,estimate,se
+genckup,,1 General Checkup,42.53,0.52
+genckup,,2 No General Checkup,57.47,0.52
+genckup_by_insured,1 Insured,1 General Checkup,46.12,0.54
+genckup_by_insured,1 Insured,2 No General Checkup,53.88,0.54
+genckup_by_insured,2 Uninsured,1 General Checkup,17.86,0.78
+genckup_by_insured,2 Uninsured,2 No General Checkup,82.14,0.78
+paid_by_insured,1 Insured,AMBTOTPD,271.70,
+paid_by_insured,1 Insured,AMBFAMPD,38.73,
+paid_by_insured,2 Uninsured,AMBTOTPD,204.03,
+paid_by_insured,2 Uninsured,AMBFAMPD,83.54,

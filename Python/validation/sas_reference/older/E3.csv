@@ -1,0 +1,7 @@
+result,domain,variable,estimate,se
+pct_unins00,,UNINS00,11.330598,0.542986
+pct_unins00_by_unins99,0,UNINS00,3.467562,0.264600
+pct_unins00_by_unins99,1,UNINS00,76.924987,1.552855
+pct_exp00,,TOTEXP00,83.031978,0.614394
+pct_exp00_by_exp99,0,TOTEXP00,47.598181,1.327134
+pct_exp00_by_exp99,1,TOTEXP00,88.941926,0.432282
