@@ -21,6 +21,7 @@ import pandas as pd
 from samplics.estimation import TaylorEstimator
 from samplics.utils.formats import fpc_as_dict
 from samplics.utils.types import PopParam
+from scipy import stats
 
 MEPS_DIR = os.environ.get("MEPS_DIR", "C:/MEPS")
 
@@ -253,6 +254,68 @@ def survey_estimate(
 
     cols = (domain or []) + ["variable", "estimate", "se"]
     return pd.DataFrame(rows, columns=cols)
+
+
+def _qrule_math(x: np.ndarray, w: np.ndarray, p: float) -> float:
+    """R survey ``qrule="math"``: inverse of the weighted empirical CDF."""
+    keep = w > 0
+    x, w = x[keep], w[keep]
+    order = np.argsort(x, kind="stable")
+    x, cumw = x[order], np.cumsum(w[order])
+    total = cumw[-1]
+    below = np.nonzero(cumw <= p * total)[0]
+    pos = below[-1] if below.size else 0
+    if below.size and np.isclose(p - cumw[pos] / total, 0.0, atol=1e-15):
+        return float(x[pos])
+    return float(x[min(pos + 1, len(x) - 1)] if below.size else x[0])
+
+
+def survey_quantile(
+    df: pd.DataFrame,
+    variable: str,
+    weight: str,
+    quantile: float = 0.5,
+    stratum: str = "VARSTR",
+    psu: str = "VARPSU",
+    domain: str | Sequence[str] | None = None,
+    subpop: pd.Series | None = None,
+    alpha: float = 0.05,
+    lonely_psu: str = "adjust",
+) -> pd.DataFrame:
+    """Design-based quantile with a Woodruff confidence-interval SE.
+
+    Matches R ``svyquantile(~x, design, quantiles = q)`` (survey >= 4.0 defaults:
+    ``qrule = "math"``, ``interval.type = "mean"``, ``df = degf(domain design)``) and the
+    ``svyby(..., FUN = svyquantile)`` form. SE = CI half-width / t quantile, as in R.
+    """
+    domain = [domain] if isinstance(domain, str) else (list(domain) if domain else None)
+    codes, labels = _domain_labels(df, domain, subpop) or (np.zeros(len(df), dtype=np.int64), [()])
+    x_all = df[variable].to_numpy(dtype=float)
+    w_all = df[weight].to_numpy(dtype=float)
+    strata = df[stratum].astype(str).to_numpy(dtype=object)
+    psu_id = (df[stratum].astype(str) + "_" + df[psu].astype(str)).to_numpy(dtype=object)
+
+    rows = []
+    for k, label in enumerate(labels):
+        in_dom = codes == k
+        if not in_dom.any():
+            continue
+        x, w = x_all[in_dom], w_all[in_dom]
+        qhat = _qrule_math(x, w, quantile)
+        # R degf(): PSUs minus strata among records with nonzero weight in the domain
+        inset = in_dom & (w_all != 0)
+        t_crit = stats.t.ppf(1 - alpha / 2, len(set(psu_id[inset])) - len(set(strata[inset])))
+        tmp = df[[weight, stratum, psu]].assign(_below=(x_all <= qhat).astype(float))
+        m = survey_estimate(tmp, "_below", weight=weight, stat="mean", stratum=stratum, psu=psu,
+                            subpop=pd.Series(in_dom, index=df.index), lonely_psu=lonely_psu)
+        p_hat, p_se = m["estimate"].iloc[0], m["se"].iloc[0]
+        p_lo, p_hi = p_hat - t_crit * p_se, p_hat + t_crit * p_se
+        lo = _qrule_math(x, w, p_lo) if p_lo >= 0 else np.nan
+        hi = _qrule_math(x, w, p_hi) if p_hi <= 1 else np.nan
+        row = {"variable": variable, "estimate": qhat, "se": (hi - lo) / (2 * t_crit)}
+        row.update(dict(zip(domain or [], label)))
+        rows.append(row)
+    return pd.DataFrame(rows, columns=(domain or []) + ["variable", "estimate", "se"])
 
 
 def add_dummies(df: pd.DataFrame, col: str, levels: Sequence | None = None) -> list[str]:
