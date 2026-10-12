@@ -15,3 +15,14 @@ res <- rbind(
 rownames(res) <- NULL
 write.csv(res, "synthetic_expected_r.csv", row.names=FALSE)
 print(res)
+
+# Quantiles (svyquantile defaults: qrule="math", interval.type="mean", df=degf(design))
+q_all <- svyquantile(~Y, d, quantiles=0.5)$Y
+q_by <- svyby(~Y, ~GRP, subset(d, FLAG==1), svyquantile, quantiles=0.5)
+q <- rbind(
+  data.frame(by="none", level="all", estimate=q_all[1, "quantile"], se=q_all[1, "se"]),
+  data.frame(by="GRP", level=as.character(q_by$GRP), estimate=q_by$Y, se=q_by$se.Y)
+)
+rownames(q) <- NULL
+write.csv(q, "synthetic_expected_quantile_r.csv", row.names=FALSE)
+print(q)
