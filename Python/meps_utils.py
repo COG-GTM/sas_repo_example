@@ -497,3 +497,64 @@ def survey_glm(
     t = beta / se
     p = 2 * stats.t.sf(np.abs(t), degf + 1 - len(beta))
     return pd.DataFrame({"variable": names, "estimate": beta, "se": se, "t": t, "p": p})
+
+
+# Frequency tables --------------------------------------------------------------
+
+
+def survey_freq(
+    df: pd.DataFrame,
+    row: str,
+    col: str,
+    weight: str,
+    stratum: str = "VARSTR",
+    psu: str = "VARPSU",
+    layer: str | None = None,
+    subpop: pd.Series | None = None,
+    lonely_psu: str = "adjust",
+) -> dict[str, pd.DataFrame]:
+    """Two-way (optionally layered) design-based frequency table, like SAS ``PROC SURVEYFREQ``
+    ``TABLE [layer*]row*col / ROW`` (and R ``svyby(~col, ~row, svymean)``).
+
+    Rows with a missing ``row``/``col``/``layer`` value (or outside ``subpop``) are excluded from
+    the table but kept in the design. Apply value labels before calling: levels are grouped by
+    their (formatted) values, as SAS does. Returns tidy frames ``[*layer, row, variable, estimate,
+    se]`` with ``variable`` = column level:
+
+    * ``wgt_freq``    weighted frequency (SAS "Weighted Frequency" / "Std Dev of Wgt Freq")
+    * ``percent``     percent of the table (or of the layer), 0-100
+    * ``row_percent`` percent within the row (``/ ROW``), 0-100
+    """
+    keys = ([layer] if layer else []) + [row]
+    valid = df[keys + [col]].notna().all(axis=1)
+    if subpop is not None:
+        valid &= np.asarray(subpop, dtype=bool)
+    col_levels = sorted(df.loc[valid, col].unique())
+    row_levels = sorted(df.loc[valid, row].unique())
+    tmp = df[[weight, stratum, psu] + keys].copy()
+    cells = {}
+    for c in col_levels:
+        tmp[f"c:{c}"] = (df[col] == c).astype(float)
+        for r in row_levels:
+            cells[(r, c)] = f"rc:{r}|{c}"
+            tmp[cells[(r, c)]] = ((df[row] == r) & (df[col] == c)).astype(float)
+    kw = {"weight": weight, "stratum": stratum, "psu": psu, "subpop": valid, "lonely_psu": lonely_psu}
+    col_vars = [f"c:{c}" for c in col_levels]
+
+    def relabel(res):
+        res["variable"] = res["variable"].str.slice(2)
+        return res
+
+    wgt = relabel(survey_estimate(tmp, col_vars, stat="total", domain=keys, **kw))
+    rowp = relabel(survey_estimate(tmp, col_vars, stat="mean", domain=keys, **kw))
+    pct = survey_estimate(tmp, list(cells.values()), stat="mean", domain=layer, **kw)
+    rc = pct["variable"].str.slice(3).str.split("|", n=1, expand=True)
+    pct[row], pct["variable"] = rc[0], rc[1]
+    pct = pct[keys + ["variable", "estimate", "se"]]
+    # drop empty cells (SAS prints them as missing)
+    pct = pct.merge(wgt.loc[wgt["estimate"] > 0, keys + ["variable"]].astype(str), on=keys + ["variable"]) \
+        if layer is None else pct.astype({layer: str}).merge(
+            wgt.loc[wgt["estimate"] > 0, keys + ["variable"]].astype(str), on=keys + ["variable"])
+    for res in (pct, rowp):
+        res[["estimate", "se"]] *= 100
+    return {"wgt_freq": wgt, "percent": pct, "row_percent": rowp}
