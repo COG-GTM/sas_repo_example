@@ -46,7 +46,8 @@ def main(meps_dir=None):
     print(fy[fy["CHOLDX"] >= 0].groupby(["hl_pmed_flag", "CHOLDX"]).size())
 
     sub = fy["hl_pmed_flag"] == 1
-    w = {"weight": "PERWT20F", "subpop": sub}
+    # The R script sets options(survey.adjust.domain.lonely = TRUE)
+    w = {"weight": "PERWT20F", "subpop": sub, "adjust_domain_lonely": True}
     pers_vars = ["n_hl_fills", "hl_drug_exp"]
     results = {
         "totals": survey_estimate(fy, ["hl_pmed_flag"] + pers_vars, stat="total", **w),

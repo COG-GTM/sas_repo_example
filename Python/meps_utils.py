@@ -131,6 +131,32 @@ def _adjust_variance(
     return float((sums**2).sum())
 
 
+def _domain_lonely_variance(
+    est: TaylorEstimator,
+    y: np.ndarray,
+    w: np.ndarray,
+    x: np.ndarray,
+    stratum: np.ndarray,
+    psu: np.ndarray,
+    n_dom: int,
+    n_psu: pd.Series,
+) -> float:
+    """Extra variance under R ``survey.adjust.domain.lonely = TRUE`` with "adjust".
+
+    For a stratum with n_h > 1 PSUs in which the domain (the first ``n_dom`` rows) has
+    records in only one PSU, R skips centering, giving T^2 * n_h / (n_h - 1) instead of
+    the usual T^2 (T = that PSU's score total). Returns the difference, T^2 / (n_h - 1).
+    """
+    dom_psus = pd.Series(psu[:n_dom]).groupby(stratum[:n_dom]).nunique()
+    single = dom_psus.index[(dom_psus == 1).to_numpy() & (n_psu.reindex(dom_psus.index) > 1).to_numpy()]
+    if not len(single):
+        return 0.0
+    scores = est._score_variable(y, w, x)[:, 0]
+    mask = np.isin(stratum, single)
+    totals = pd.Series(scores[mask]).groupby(stratum[mask]).sum()
+    return float((totals**2 / (n_psu.reindex(totals.index) - 1)).sum())
+
+
 def _domain_blocks(dom: tuple[np.ndarray, list[tuple]] | None, n: int, psu_rows: np.ndarray):
     """Yield ``(label, row_index)`` for each domain.
 
@@ -163,6 +189,7 @@ def survey_estimate(
     subpop: pd.Series | None = None,
     denominator: str | None = None,
     lonely_psu: str = "adjust",
+    adjust_domain_lonely: bool = False,
 ) -> pd.DataFrame:
     """Design-based survey estimates with Taylor-series linearization (samplics).
 
@@ -183,6 +210,10 @@ def survey_estimate(
         but excluded from the output.
     lonely_psu : ``"adjust"`` (default, matches R ``options(survey.lonely.psu = "adjust")``),
         ``"remove"`` (skip singleton strata, as SAS does), or ``"fail"``.
+    adjust_domain_lonely : also treat strata where a domain/subpopulation has a single PSU
+        as lonely (R ``options(survey.adjust.domain.lonely = TRUE)``). With
+        ``lonely_psu="adjust"`` that PSU's score total is not centered, which inflates the
+        stratum's contribution by n_h / (n_h - 1).
 
     Returns
     -------
@@ -215,6 +246,7 @@ def survey_estimate(
 
     # one zero-weight placeholder record per PSU (see _domain_blocks)
     psu_rows = pd.Series(psu_id).drop_duplicates().index.to_numpy()
+    n_psu = pd.Series(psu_id).groupby(strat).nunique()
     blocks = list(_domain_blocks(dom, len(df), psu_rows))
     has_x = denominator is not None
 
@@ -247,6 +279,8 @@ def survey_estimate(
             )
             if lonely.size and lonely_psu == "adjust":
                 var_ = var_ + _adjust_variance(est, y_d, w_d, x_d, s_d, lonely)
+            if adjust_domain_lonely and lonely_psu == "adjust" and d is not None:
+                var_ = var_ + _domain_lonely_variance(est, y_d, w_d, x_d, s_d, p_d, n_dom, n_psu)
             row = {"variable": var, "estimate": float(pt), "se": float(np.sqrt(var_))}
             if domain:
                 row.update(dict(zip(domain, d)))

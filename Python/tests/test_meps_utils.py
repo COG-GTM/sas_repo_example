@@ -123,3 +123,22 @@ def test_survey_glm_matches_r_svyglm_quasibinomial():
     assert res["variable"].tolist() == ["(Intercept)", "AGE", "as.factor(G)2", "as.factor(G)3"]
     np.testing.assert_allclose(res["estimate"], r_est, rtol=1e-7)
     np.testing.assert_allclose(res["se"], r_se, rtol=1e-6)
+
+
+def test_adjust_domain_lonely_matches_r():
+    # Reference: R survey 4.1.1 with options(survey.lonely.psu = "adjust",
+    #   survey.adjust.domain.lonely = TRUE); svyby(~Y, ~D, des, svymean / svytotal)
+    df = pd.DataFrame({
+        "VARSTR": np.repeat([1, 2, 3], 6),
+        "VARPSU": np.tile(np.repeat([1, 2], 3), 3),
+        "WT": [10, 20, 30, 15, 25, 35, 12, 22, 32, 18, 28, 38, 11, 21, 31, 17, 27, 37],
+        "Y": [1, 4, 2, 5, 3, 6, 2, 7, 1, 8, 3, 9, 4, 2, 6, 1, 5, 3],
+        "D": list("AABBBBABABABAAABBB"),
+    })
+    kw = {"weight": "WT", "domain": "D", "adjust_domain_lonely": True}
+    mean = survey_estimate(df, "Y", stat="mean", **kw).sort_values("D")
+    total = survey_estimate(df, "Y", stat="total", **kw).sort_values("D")
+    np.testing.assert_allclose(mean["estimate"], [3.04242424242424, 5.01136363636364], rtol=1e-12)
+    np.testing.assert_allclose(mean["se"], [0.830719154021954, 1.02005850634226], rtol=1e-12)
+    np.testing.assert_allclose(total["estimate"], [502, 1323], rtol=1e-12)
+    np.testing.assert_allclose(total["se"], [406.142832018491, 581.860808097607], rtol=1e-12)
