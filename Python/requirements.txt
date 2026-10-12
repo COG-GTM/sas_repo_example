@@ -5,3 +5,4 @@ samplics==0.6.1
 pyreadstat>=1.2
 pytest>=7
 scipy>=1.11
+matplotlib>=3.8  # optional: figure in workshop_exercises/ggplot_example
