@@ -130,6 +130,20 @@ dropping rows can remove PSUs from the design and understate standard errors (se
 `test_domain_estimation_keeps_full_design` in [tests](tests)). Domains whose records all
 have zero weight are omitted, as in SAS and R.
 
+## Quantiles (medians)
+
+`meps_utils.survey_quantile` is the equivalent of R `svyquantile` (and
+`svyby(..., FUN = svyquantile)`) and SAS `PROC SURVEYMEANS ... MEDIAN`. It uses the same
+defaults as R `survey` 4.x: the quantile is the inverse of the weighted empirical CDF
+(`qrule = "math"`), and the SE is derived from a Woodruff confidence interval
+(half-width / t quantile, with degrees of freedom = PSUs - strata within the domain).
+`domain=` and `subpop=` work as in `survey_estimate`.
+
+``` python
+survey_quantile(fyc, "TOTEXP16", weight="PERWT16F", quantile=0.5,
+                domain=["sex", "race"], subpop=fyc["TOTEXP16"] > 0)
+```
+
 ## Lonely PSUs
 
 All R examples set `options(survey.lonely.psu = "adjust")`. `survey_estimate` reproduces
@@ -160,15 +174,41 @@ Each script prints its results and returns them from `main()`.
 The following codes in [summary_tables_examples](summary_tables_examples) re-create selected
 statistics from the [MEPS-HC Data Tools](https://datatools.ahrq.gov/meps-hc).
 
+### Accessibility and Quality of Care  <!-- omit in toc -->
 #### Access to Care <!-- omit in toc -->
+[care_access_2017.py](summary_tables_examples/care_access_2017.py):
+Reasons for difficulty receiving needed care, by poverty status, 2017
+<br>
 [care_access_2019.py](summary_tables_examples/care_access_2019.py):
 Number and percent of people who did not receive treatment because they couldn't afford it, by poverty status, 2019
 
+#### Diabetes Care <!-- omit in toc -->
+[care_diabetes_a1c_2016.py](summary_tables_examples/care_diabetes_a1c_2016.py): Adults with diabetes receiving hemoglobin A1c blood test, by race/ethnicity, 2016
+
+#### Quality of Care <!-- omit in toc -->
+[care_quality_2016.py](summary_tables_examples/care_quality_2016.py): Ability to schedule a routine appointment, by insurance coverage, 2016
+
 ### Medical conditions <!-- omit in toc -->
+[cond_expenditures_2015.py](summary_tables_examples/cond_expenditures_2015.py): Utilization and expenditures by medical condition, 2015 -- Conditions defined by collapsed ICD-9/CCS codes
+<br>
 [cond_expenditures_2018.py](summary_tables_examples/cond_expenditures_2018.py): Utilization and expenditures by medical condition, 2018 -- Conditions defined by collapsed ICD-10/CCSR codes
+
+### Health Insurance <!-- omit in toc -->
+[ins_age_2016.py](summary_tables_examples/ins_age_2016.py): Health insurance coverage by age group, 2016
 
 ### Prescribed drugs <!-- omit in toc -->
 [pmed_prescribed_drug_2016.py](summary_tables_examples/pmed_prescribed_drug_2016.py): Purchases and expenditures by generic drug name, 2016
+<br>
+[pmed_therapeutic_class_2016.py](summary_tables_examples/pmed_therapeutic_class_2016.py): Purchases and expenditures by Multum therapeutic class, 2016
+
+### Use, expenditures, and population <!-- omit in toc -->
+[use_events_2016.py](summary_tables_examples/use_events_2016.py): Number of events and mean expenditure per event, for office-based and outpatient events, by source of payment, 2016
+<br>
+[use_expenditures_2016.py](summary_tables_examples/use_expenditures_2016.py): Expenditures for office-based and outpatient visits, by source of payment, 2016
+<br>
+[use_expenditures_2019.py](summary_tables_examples/use_expenditures_2019.py): Mean expenditure per person, by event type and source of payment, 2019
+<br>
+[use_race_sex_2016.py](summary_tables_examples/use_race_sex_2016.py): Utilization and expenditures by race and sex, 2016
 
 ## Workshop exercises
 

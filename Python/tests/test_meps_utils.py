@@ -17,7 +17,7 @@ import pytest
 
 HERE = Path(__file__).resolve().parent
 sys.path.append(str(HERE.parent))
-from meps_utils import survey_estimate
+from meps_utils import survey_estimate, survey_quantile
 
 DATA = pd.read_csv(HERE / "synthetic_design.csv")
 EXPECTED = pd.read_csv(HERE / "synthetic_expected_r.csv", dtype={"level": str})
@@ -88,3 +88,14 @@ def test_empty_subpopulation_returns_empty_frame():
     out = survey_estimate(DATA, "Y", weight="WT", stat="mean", subpop=DATA["Y"] < -1e9)
     assert out.empty
     assert list(out.columns) == ["variable", "estimate", "se"]
+
+
+def test_quantile_matches_r_svyquantile():
+    expected = pd.read_csv(HERE / "synthetic_expected_quantile_r.csv", dtype={"level": str})
+    overall = survey_quantile(DATA, "Y", weight="WT", quantile=0.5)
+    by_grp = survey_quantile(DATA, "Y", weight="WT", quantile=0.5, domain="GRP", subpop=DATA["FLAG"] == 1)
+    got = pd.concat([overall.assign(level="all"), by_grp.assign(level=by_grp["GRP"])])
+    merged = expected.merge(got, on="level", suffixes=("_r", "_py"), validate="one_to_one")
+    assert len(merged) == len(expected)
+    np.testing.assert_allclose(merged["estimate_py"], merged["estimate_r"], rtol=1e-10)
+    np.testing.assert_allclose(merged["se_py"], merged["se_r"], rtol=1e-8)
