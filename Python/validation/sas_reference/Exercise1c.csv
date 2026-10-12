@@ -1,0 +1,8 @@
+result,domain,variable,estimate,se
+total_exp,,TOTEXP18,1.9785699E12,62127195159
+pct_has_exp,,has_expFALSE,0.133297,0.003605
+pct_has_exp,,has_expTRUE,0.866703,0.003605
+mean_exp,,TOTEXP18,6063.134458,128.011022
+mean_exp_has_exp,,TOTEXP18,6995.631273,138.898348
+mean_exp_has_exp_by_age,<65,TOTEXP18,5650.452557,133.161971
+mean_exp_has_exp_by_age,65+,TOTEXP18,12866,328.976784
