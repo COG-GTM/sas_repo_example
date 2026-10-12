@@ -7,6 +7,8 @@
 - [Translating SAS DATA steps and procedures](#translating-sas-data-steps-and-procedures)
 - [Survey estimation in Python](#survey-estimation-in-python)
   - [Domains and subpopulations](#domains-and-subpopulations)
+  - [Quantiles (medians)](#quantiles-medians)
+  - [Regression](#regression)
   - [Lonely PSUs](#lonely-psus)
 - [Validation](#validation)
 - [Python examples](#python-examples)
@@ -144,12 +146,27 @@ survey_quantile(fyc, "TOTEXP16", weight="PERWT16F", quantile=0.5,
                 domain=["sex", "race"], subpop=fyc["TOTEXP16"] > 0)
 ```
 
+## Regression
+
+`meps_utils.survey_glm` fits design-based logistic regressions, matching R
+`svyglm(..., family = quasibinomial)` (and the point estimates of SAS `PROC SURVEYLOGISTIC`).
+Factor covariates are expanded to treatment dummies named like R (`as.factor(SEX)2`); SEs use
+the linearization sandwich and t tests use `degf(design) + 1 - p` df, as `summary.svyglm` does.
+
+``` python
+survey_glm(fyc18, "flu_shot", weight="SAQWT18F", numeric=["AGELAST"],
+           factors=["SEX", "RACETHX", "INSCOV18"], subpop=fyc18["ADFLST42"] >= 0)
+```
+
 ## Lonely PSUs
 
 All R examples set `options(survey.lonely.psu = "adjust")`. `survey_estimate` reproduces
 this by default (`lonely_psu="adjust"`): a stratum with a single PSU contributes the
 squared PSU score total, centered at zero. `lonely_psu="remove"` skips those strata
 (the SAS default) and `lonely_psu="fail"` raises an error (the `samplics` default).
+`adjust_domain_lonely=True` reproduces R `options(survey.adjust.domain.lonely = TRUE)`,
+which also treats strata where a domain has only one PSU as lonely (used by
+`cond_pmed_2020`).
 
 # Validation
 
@@ -212,5 +229,63 @@ Number and percent of people who did not receive treatment because they couldn't
 
 ## Workshop exercises
 
-Ports of the [SAS workshop exercises](../SAS/workshop_exercises) will be added to
-[workshop_exercises](workshop_exercises).
+Ports of the [SAS workshop exercises](../SAS/workshop_exercises) (same folder and file names)
+and of the R-only workshop examples, in [workshop_exercises](workshop_exercises). Where the R
+and SAS exercise numbers differ, the R reference is listed in parentheses.
+
+[exercise_1a/Exercise1a.py](workshop_exercises/exercise_1a/Exercise1a.py) (R `exercise_1a.R`):
+National health care expenses, 2016 -- mean/total expenditures, percent with an expense, mean among people with an expense, by age
+<br>
+[exercise_1b/Exercise1b.py](workshop_exercises/exercise_1b/Exercise1b.py):
+National health care expenses by type of service, 2015
+<br>
+[exercise_1c/Exercise1c.py](workshop_exercises/exercise_1c/Exercise1c.py) (R `exercise_1b.R`):
+National health care expenses, 2018 -- including the median expense by age
+<br>
+[exercise_2a/Exercise2a.py](workshop_exercises/exercise_2a/Exercise2a.py):
+Purchases and expenditures for antipsychotics, 2015
+<br>
+[exercise_2b/Exercise2b.py](workshop_exercises/exercise_2b/Exercise2b.py) (R `exercise_2a.R`):
+Purchases and expenditures for narcotic analgesics, 2016
+<br>
+[exercise_2c/Exercise2c.py](workshop_exercises/exercise_2c/Exercise2c.py) (R `exercise_2b.R`):
+Purchases and expenditures for narcotic analgesics, 2018
+<br>
+[exercise_3a/Exercise3a.py](workshop_exercises/exercise_3a/Exercise3a.py):
+Use and expenditures for persons with diabetes, 2015
+<br>
+[exercise_3b/Exercise3b.py](workshop_exercises/exercise_3b/Exercise3b.py):
+Expenditures for all events associated with diabetes, by type of service, 2015
+<br>
+[exercise_4a/Exercise4a.py](workshop_exercises/exercise_4a/Exercise4a.py) (R `exercise_3a.R`):
+Pooling annual files (2015-2016): uninsured, high-income adults age 26-30
+<br>
+[exercise_4b/Exercise4b.py](workshop_exercises/exercise_4b/Exercise4b.py) (R `exercise_3b.R`):
+Pooling longitudinal files (panels 17-19): year-2 insurance of uninsured, high-income adults age 26-30
+<br>
+[exercise_4c/Exercise4c.py](workshop_exercises/exercise_4c/Exercise4c.py) (R `exercise_3c.R`):
+Pooling 2017-2018 across the CAPI re-design: joint pain / arthritis
+<br>
+[exercise_4d/Exercise4.py](workshop_exercises/exercise_4d/Exercise4.py) (R `exercise_3d.R`):
+Pooling 2017-2019 with the Pooled Variance Linkage file (`h36u23`)
+<br>
+[exercise_5a/Exercise5a.py](workshop_exercises/exercise_5a/Exercise5a.py):
+Constructing family-level (CPS family) variables, 2015
+<br>
+[exercise_5b/Exercise5b.py](workshop_exercises/exercise_5b/Exercise5b.py):
+Constructing insurance status from monthly insurance variables, 2015
+<br>
+[exercise_6a/Exercise6.py](workshop_exercises/exercise_6a/Exercise6.py) (R `exercise_4a.R`):
+Logistic regression: flu shot (SAQ weight), 2018
+<br>
+[exercise_6b/exercise6.py](workshop_exercises/exercise_6b/exercise6.py) (R `exercise_4b.R`):
+Logistic regressions: care delayed due to COVID-19, 2020
+<br>
+[cond_mv_2020/cond_mv_2020.py](workshop_exercises/cond_mv_2020/cond_mv_2020.py) (R only):
+Office-based visits for mental health, 2020
+<br>
+[cond_pmed_2020/cond_pmed_2020.py](workshop_exercises/cond_pmed_2020/cond_pmed_2020.py) (R only):
+Prescribed medicines for hyperlipidemia, 2020
+<br>
+[ggplot_example/ggplot_example.py](workshop_exercises/ggplot_example/ggplot_example.py) (R only):
+Percent of expenditures by type of service and age, 2013, with a matplotlib bar chart
