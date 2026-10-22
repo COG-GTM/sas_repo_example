@@ -35,7 +35,13 @@ WKLYF = [(0.13, 49.99 - 1e-9, "    0.13 -  49.99"), (50, 499.99, "   50.00 - 499
 
 cols = ["DUPERSID", "PERWT02P", "VARSTR", "VARPSU", "EMPST42", "SELFCM42", "SELFCM31", "HRWG42X", "HRWG31X", "HOUR42",
         "HOUR31", "RTHLTH42", "TEMPJB42", "AGE42X"]  # fmt: skip
-H62 = load_meps("h62", columns=cols)
+# HC-062 (2002 population characteristics, weight PERWT02P) is no longer on
+# the MEPS website; fall back to the 2002 consolidated file HC-070 (PERWT02F).
+try:
+    H62 = load_meps("h62", columns=cols)
+except FileNotFoundError:
+    H62 = load_meps("h70", columns=[c.replace("PERWT02P", "PERWT02F") for c in cols])
+    H62 = H62.rename(columns={"PERWT02F": "PERWT02P"})
 
 # Persons with a current main job (CMJ) in rounds 4/2 that reported earnings,
 # weekly hours and perceived health status. A value of -2 for the '42'

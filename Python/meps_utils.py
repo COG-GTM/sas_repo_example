@@ -160,6 +160,8 @@ def read_meps(path: str | os.PathLike, columns: Sequence[str] | None = None) -> 
         # ~5.4e-79 instead of 0; snap them back to exact zeros.
         num = df.select_dtypes("number").columns
         df[num] = df[num].mask(df[num].abs() < 1e-70, 0.0)
+    elif ext == ".dta":
+        df = pd.read_stata(path, convert_categoricals=False)
     else:
         raise ValueError(f"Unsupported MEPS file type: {path}")
 
@@ -173,7 +175,7 @@ def read_meps(path: str | os.PathLike, columns: Sequence[str] | None = None) -> 
 
 
 def download_meps(
-    name: str, meps_dir: str | os.PathLike | None = None, overwrite: bool = False
+    name: str, meps_dir: str | os.PathLike | None = None, overwrite: bool = False, stata: bool = False
 ) -> Path:
     """Download and unzip a MEPS public use file from the MEPS website.
 
@@ -185,7 +187,7 @@ def download_meps(
 
     folder = Path(meps_dir or MEPS_DIR)
     folder.mkdir(parents=True, exist_ok=True)
-    for ext in (".sas7bdat", ".ssp"):
+    for ext in (".dta",) if stata else (".sas7bdat", ".ssp"):
         existing = folder / f"{name}{ext}"
         if existing.exists() and not overwrite:
             return existing
@@ -198,13 +200,15 @@ def download_meps(
     link = re.fullmatch(r"(h\d+[a-z]+)f\d+", name)
     if link:
         urls.insert(1, f"{MEPS_URL}/{link.group(1)}/{name}v9.zip")
+    if stata:  # Stata (.dta) zips, used when the SAS file is a CPORT archive
+        urls = [u.replace("v9.zip", "dta.zip") for u in urls if u.endswith("v9.zip")]
     for url in urls:
         resp = requests.get(url, timeout=600)
         if resp.status_code != 200 or not resp.content.startswith(b"PK"):
             continue
         with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
             member = next(
-                m for m in zf.namelist() if m.lower().endswith((".sas7bdat", ".ssp"))
+                m for m in zf.namelist() if m.lower().endswith((".sas7bdat", ".ssp", ".dta"))
             )
             target = folder / f"{name}{Path(member).suffix.lower()}"
             with zf.open(member) as src, open(target, "wb") as dst:
@@ -220,7 +224,14 @@ def load_meps(
     path = meps_file(name, meps_dir)
     if not path.exists():
         path = download_meps(name, meps_dir)
-    return read_meps(path, columns=columns)
+    try:
+        return read_meps(path, columns=columns)
+    except ValueError as err:
+        # A few SAS V9 zips (e.g. h206if1) contain a CPORT archive, which
+        # neither pandas nor pyreadstat can read; use the Stata release instead.
+        if "CPORT" not in str(err):
+            raise
+        return read_meps(download_meps(name, meps_dir, stata=True), columns=columns)
 
 
 def apply_format(series: pd.Series, fmt, default=None, missing=None) -> pd.Series:

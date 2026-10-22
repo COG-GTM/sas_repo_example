@@ -41,7 +41,13 @@ chng = j["SUBTYPE"].isin([3, 4]) | (j["SUBTYPE"].isin([1, 2]) & (j["JSTRTY"] == 
 chngjob_pop = set(j.loc[chng & j["DUPERSID"].isin(empstart_pop), "DUPERSID"])
 
 # Adults (latest valid age >= 18) from the full-year file
-hc62 = load_meps("h62", columns=["DUPERSID", "AGE02X", "AGE42X", "AGE31X", "PERWT02P"])
+# HC-062 (2002 population characteristics, weight PERWT02P) is no longer on
+# the MEPS website; fall back to the 2002 consolidated file HC-070 (PERWT02F).
+try:
+    hc62 = load_meps("h62", columns=["DUPERSID", "AGE02X", "AGE42X", "AGE31X", "PERWT02P"])
+except FileNotFoundError:
+    hc62 = load_meps("h70", columns=[c.replace("PERWT02P", "PERWT02F") for c in ["DUPERSID", "AGE02X", "AGE42X", "AGE31X", "PERWT02P"]])
+    hc62 = hc62.rename(columns={"PERWT02F": "PERWT02P"})
 hc62["AGE"] = np.select([hc62["AGE02X"] >= 0, hc62["AGE42X"] >= 0, hc62["AGE31X"] >= 0],
                         [hc62["AGE02X"], hc62["AGE42X"], hc62["AGE31X"]], default=np.nan)  # fmt: skip
 hc62 = hc62[hc62["AGE"] >= 18][["DUPERSID", "AGE", "PERWT02P"]]
