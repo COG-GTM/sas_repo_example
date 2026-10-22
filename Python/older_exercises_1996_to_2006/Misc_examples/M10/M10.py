@@ -56,4 +56,4 @@ for var in ("IPXP03X", "IPFXP03X", "IPDXP03X"):
     means(STAZ2003, var, "PERWT03F", domain="ER_FACEX_F")
     # PROC SURVEYREG; MODEL var = ER_FACEX
     print(f"SURVEYREG: {var} = ER_FACEX")
-    print(svy_glm(f"{var} ~ ER_FACEX", STAZ2003, weight="PERWT03F").summary().to_string(index=False), "\n")
+    print(svy_glm(f"{var} ~ ER_FACEX", STAZ2003, weight="PERWT03F").summary_frame().to_string(), "\n")
