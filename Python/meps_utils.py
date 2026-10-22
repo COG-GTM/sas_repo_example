@@ -46,6 +46,7 @@ from scipy import stats
 
 warnings.filterwarnings("ignore", message="samplics is archived", category=FutureWarning)
 from samplics import PopParam, TaylorEstimator  # noqa: E402
+from samplics.utils.types import SinglePSUEst  # noqa: E402
 import samplics.estimation.expansion as _samplics_expansion  # noqa: E402
 
 
@@ -154,7 +155,7 @@ def read_meps(path: str | os.PathLike, columns: Sequence[str] | None = None) -> 
         except ValueError:  # some older XPORT headers are rejected by pandas
             import pyreadstat
 
-            df, _ = pyreadstat.read_xport(str(path), encoding="latin-1")
+            df, _ = pyreadstat.read_xport(str(path))
         # pandas decodes IBM-float zeros with a non-zero exponent byte as
         # ~5.4e-79 instead of 0; snap them back to exact zeros.
         num = df.select_dtypes("number").columns
@@ -343,6 +344,9 @@ def _taylor(param, y, w, st, cl, key, x=None, as_factor=False):
         psu=cl,
         domain=key,
         as_factor=as_factor,
+        # Strata with a single PSU (common on event files) contribute zero
+        # variance, as in SAS PROC SURVEYMEANS / SURVEYFREQ.
+        single_psu=SinglePSUEst.skip,
     )
     return est
 
