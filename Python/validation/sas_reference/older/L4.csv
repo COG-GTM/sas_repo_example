@@ -1,0 +1,35 @@
+result,domain,variable,estimate,se
+asthma_size,,1 Has Asthma,13352919,517338.63
+asthma_pct,,1 Has Asthma,4.70,0.14
+asthma_size,,2 No Asthma,270894408,5235504.11
+asthma_pct,,2 No Asthma,95.30,0.14
+overall_size,,1 Very Serious,1586408,124844.38
+overall_pct,,1 Very Serious,11.88,0.89
+overall_age_size,1. 0-17,1 Very Serious,362945,53864.21
+overall_age_pct,1. 0-17,1 Very Serious,7.38,1.09
+overall_age_size,2. 18+,1 Very Serious,1223463,114693.22
+overall_age_pct,2. 18+,1 Very Serious,14.50,1.24
+overall_size,,2 Somewhat Serious,3743390,236614.66
+overall_pct,,2 Somewhat Serious,28.03,1.27
+overall_age_size,1. 0-17,2 Somewhat Serious,1398136,124503.56
+overall_age_pct,1. 0-17,2 Somewhat Serious,28.44,1.90
+overall_age_size,2. 18+,2 Somewhat Serious,2345254,178058.01
+overall_age_pct,2. 18+,2 Somewhat Serious,27.79,1.56
+overall_size,,3 Not Very Serious,3675241,228900.38
+overall_pct,,3 Not Very Serious,27.52,1.39
+overall_age_size,1. 0-17,3 Not Very Serious,1514348,135810.12
+overall_age_pct,1. 0-17,3 Not Very Serious,30.81,2.21
+overall_age_size,2. 18+,3 Not Very Serious,2160893,170910.52
+overall_age_pct,2. 18+,3 Not Very Serious,25.61,1.72
+overall_size,,4 Not at All,1267870,133836.21
+overall_pct,,4 Not at All,9.50,0.93
+overall_age_size,1. 0-17,4 Not at All,419114,74586.24
+overall_age_pct,1. 0-17,4 Not at All,8.53,1.36
+overall_age_size,2. 18+,4 Not at All,848756,109466.56
+overall_age_pct,2. 18+,4 Not at All,10.06,1.21
+overall_size,,5 Missing,3080010,220302.46
+overall_pct,,5 Missing,23.07,1.36
+overall_age_size,1. 0-17,5 Missing,1220693,124876.98
+overall_age_pct,1. 0-17,5 Missing,24.83,2.05
+overall_age_size,2. 18+,5 Missing,1859317,169381.22
+overall_age_pct,2. 18+,5 Missing,22.04,1.71

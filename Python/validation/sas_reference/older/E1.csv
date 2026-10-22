@@ -1,0 +1,14 @@
+result,domain,variable,estimate,se
+mean_exp,,TOTEXP01,2555.359713,54.631583
+mean_exp_by_age,0-64,TOTEXP01,1944.345562,44.883157
+mean_exp_by_age,65-90,TOTEXP01,6790.944722,239.389968
+mean_exp_by_sex,MALE,TOTEXP01,2280.601782,81.814411
+mean_exp_by_sex,FEMALE,TOTEXP01,2816.937064,62.743712
+reg_exp_on_sex,,Intercept,2816.93706,62.7446887
+reg_exp_on_sex,,SEX,-536.33528,96.0366671
+pct_any_exp,,ANY_EXP,85.353435,0.320337
+pct_any_exp_by_age,0-64,ANY_EXP,83.780423,0.359005
+pct_any_exp_by_age,65-90,ANY_EXP,96.257645,0.354136
+pct_any_exp_by_sex,MALE,ANY_EXP,80.416420,0.436449
+pct_any_exp_by_sex,FEMALE,ANY_EXP,90.053615,0.305437
+total_exp,,TOTEXP01,726354166775,20005091265

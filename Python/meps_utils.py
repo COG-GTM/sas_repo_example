@@ -12,6 +12,7 @@ See Python/README.md for details.
 
 from __future__ import annotations
 
+import io
 import os
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -33,8 +34,15 @@ _PARAMS = {"total": PopParam.total, "mean": PopParam.mean, "ratio": PopParam.rat
 
 
 def meps_path(filename: str, meps_dir: str | None = None) -> str:
-    """Return the full path of a MEPS file in ``meps_dir`` (default: $MEPS_DIR or C:/MEPS)."""
-    return str(Path(meps_dir or MEPS_DIR) / filename)
+    """Return the full path of a MEPS file in ``meps_dir`` (default: $MEPS_DIR or C:/MEPS).
+
+    Older MEPS zips extract upper-case names (``H38.SSP``); fall back to that spelling when the
+    lower-case file does not exist (matters on case-sensitive file systems).
+    """
+    path = Path(meps_dir or MEPS_DIR) / filename
+    if not path.exists() and (path.parent / filename.upper()).exists():
+        path = path.parent / filename.upper()
+    return str(path)
 
 
 def read_meps(path: str, columns: Iterable[str] | None = None) -> pd.DataFrame:
@@ -55,7 +63,18 @@ def read_meps(path: str, columns: Iterable[str] | None = None) -> pd.DataFrame:
     if ext == ".sas7bdat":
         df = pd.read_sas(path, format="sas7bdat", encoding="latin-1")
     elif ext in (".ssp", ".xpt", ".xport"):
-        df = pd.read_sas(path, format="xport", encoding="latin-1")
+        try:
+            df = pd.read_sas(path, format="xport", encoding="latin-1")
+        except ValueError:
+            # some VM/CMS-built transport files (e.g. h56) have junk in the last 2 bytes of each
+            # header record, which pandas rejects; blank them and retry
+            raw = bytearray(Path(path).read_bytes())
+            for pos in range(0, len(raw), 80):
+                if raw[pos:pos + 20] == b"HEADER RECORD*******":
+                    raw[pos + 78:pos + 80] = b"  "
+                    if raw[pos + 20:pos + 23] == b"OBS":
+                        break
+            df = pd.read_sas(io.BytesIO(bytes(raw)), format="xport", encoding="latin-1")
     elif ext == ".dta":
         df = pd.read_stata(path, convert_categoricals=False)
     else:
@@ -497,3 +516,118 @@ def survey_glm(
     t = beta / se
     p = 2 * stats.t.sf(np.abs(t), degf + 1 - len(beta))
     return pd.DataFrame({"variable": names, "estimate": beta, "se": se, "t": t, "p": p})
+
+
+# Frequency tables --------------------------------------------------------------
+
+
+def survey_freq(
+    df: pd.DataFrame,
+    row: str,
+    col: str,
+    weight: str,
+    stratum: str = "VARSTR",
+    psu: str = "VARPSU",
+    layer: str | None = None,
+    subpop: pd.Series | None = None,
+    lonely_psu: str = "adjust",
+) -> dict[str, pd.DataFrame]:
+    """Two-way (optionally layered) design-based frequency table, like SAS ``PROC SURVEYFREQ``
+    ``TABLE [layer*]row*col / ROW`` (and R ``svyby(~col, ~row, svymean)``).
+
+    Rows with a missing ``row``/``col``/``layer`` value (or outside ``subpop``) are excluded from
+    the table but kept in the design. Apply value labels before calling: levels are grouped by
+    their (formatted) values, as SAS does. Returns tidy frames ``[*layer, row, variable, estimate,
+    se]`` with ``variable`` = column level:
+
+    * ``wgt_freq``    weighted frequency (SAS "Weighted Frequency" / "Std Dev of Wgt Freq")
+    * ``percent``     percent of the table (or of the layer), 0-100
+    * ``row_percent`` percent within the row (``/ ROW``), 0-100
+    """
+    keys = ([layer] if layer else []) + [row]
+    valid = df[keys + [col]].notna().all(axis=1)
+    if subpop is not None:
+        valid &= np.asarray(subpop, dtype=bool)
+    col_levels = sorted(df.loc[valid, col].unique())
+    row_levels = sorted(df.loc[valid, row].unique())
+    tmp = df[[weight, stratum, psu] + keys].copy()
+    # helper columns are named by level position (so arbitrary labels such as floats or "|"
+    # round-trip) under a prefix that no input column uses
+    pre = "_freq_"
+    while any(str(name).startswith(pre) for name in tmp.columns):
+        pre = "_" + pre
+    cells, col_vars = {}, {}
+    for j, c in enumerate(col_levels):
+        col_vars[f"{pre}c{j}"] = _fmt_level(c)
+        tmp[f"{pre}c{j}"] = (df[col] == c).astype(float)
+        for i, r in enumerate(row_levels):
+            cells[f"{pre}rc{i}_{j}"] = (_fmt_level(r), _fmt_level(c))
+            tmp[f"{pre}rc{i}_{j}"] = ((df[row] == r) & (df[col] == c)).astype(float)
+    kw = {"weight": weight, "stratum": stratum, "psu": psu, "subpop": valid, "lonely_psu": lonely_psu}
+
+    def relabel(res):
+        res["variable"] = res["variable"].map(col_vars)
+        return res
+
+    wgt = relabel(survey_estimate(tmp, list(col_vars), stat="total", domain=keys, **kw))
+    rowp = relabel(survey_estimate(tmp, list(col_vars), stat="mean", domain=keys, **kw))
+    pct = survey_estimate(tmp, list(cells), stat="mean", domain=layer, **kw)
+    pct[row] = pct["variable"].map(lambda v: cells[v][0])
+    pct["variable"] = pct["variable"].map(lambda v: cells[v][1])
+    pct = pct[keys + ["variable", "estimate", "se"]]
+    # drop empty cells (SAS prints them as missing)
+    pct = pct.merge(wgt.loc[wgt["estimate"] > 0, keys + ["variable"]].astype(str), on=keys + ["variable"]) \
+        if layer is None else pct.astype({layer: str}).merge(
+            wgt.loc[wgt["estimate"] > 0, keys + ["variable"]].astype(str), on=keys + ["variable"])
+    for res in (pct, rowp):
+        res[["estimate", "se"]] *= 100
+    return {"wgt_freq": wgt, "percent": pct, "row_percent": rowp}
+
+
+def survey_reg(
+    df: pd.DataFrame,
+    outcome: str,
+    weight: str,
+    numeric: Sequence[str] = (),
+    factors: Sequence[str] = (),
+    stratum: str = "VARSTR",
+    psu: str = "VARPSU",
+    subpop: pd.Series | None = None,
+    lonely_psu: str = "adjust",
+    df_adjust: bool = True,
+) -> pd.DataFrame:
+    """Design-based linear regression, like SAS ``PROC SURVEYREG`` (``MODEL y = x``).
+
+    Weighted least squares with a linearization sandwich covariance. ``df_adjust=True``
+    applies SAS's default ``VADJUST=DF`` factor (n-1)/(n-p), n = records with positive
+    weight; use ``df_adjust=False`` to match R ``svyglm(family = gaussian)``. Missing
+    values and ``subpop``/``factors`` are handled as in :func:`survey_glm`.
+    """
+    keep = np.ones(len(df), dtype=bool) if subpop is None else subpop.to_numpy(dtype=bool)
+    keep = keep & df[[outcome, *numeric, *factors]].notna().all(axis=1).to_numpy()
+    w = np.where(keep, df[weight].to_numpy(dtype=float), 0.0)
+    cols, names = [np.ones(len(df))], ["Intercept"]
+    for v in numeric:
+        cols.append(np.where(keep, df[v].to_numpy(dtype=float), 0.0))
+        names.append(v)
+    for f in factors:
+        for lev in sorted(pd.unique(df.loc[keep & (w > 0), f]))[1:]:
+            cols.append((df[f] == lev).to_numpy(dtype=float))
+            names.append(f"as.factor({f}){_fmt_level(lev)}")
+    x = np.column_stack(cols)
+    y = np.where(keep, df[outcome].to_numpy(dtype=float), 0.0)
+    xtwx_inv = np.linalg.inv(x.T @ (x * w[:, None]))
+    beta = xtwx_inv @ (x.T @ (w * y))
+    scores = (x * (w * (y - x @ beta))[:, None]) @ xtwx_inv
+    strata = df[stratum].astype(str).to_numpy(dtype=object)
+    psu_id = df[psu].astype(str).to_numpy(dtype=object)
+    vcov = _score_total_vcov(scores, strata, psu_id, lonely_psu)
+    if df_adjust:
+        n, p = int((w > 0).sum()), len(beta)
+        vcov *= (n - 1) / (n - p)
+    se = np.sqrt(np.diag(vcov))
+    inset = w != 0
+    degf = len(set(zip(strata[inset], psu_id[inset]))) - len(set(strata[inset]))
+    t = beta / se
+    return pd.DataFrame({"variable": names, "estimate": beta, "se": se, "t": t,
+                         "p": 2 * stats.t.sf(np.abs(t), degf)})

@@ -1,0 +1,12 @@
+result,domain,variable,estimate,se
+kid_parwork_wgt_freq,NOT A CHILD,0 NOT A CHILD,225141306,5365443
+kid_parwork_percent,NOT A CHILD,0 NOT A CHILD,75.2309,0.3317
+kid_parwork_wgt_freq,"CHILD, AGE 0-17",1 BOTH PARENTS WORK,30192361,1171019
+kid_parwork_percent,"CHILD, AGE 0-17",1 BOTH PARENTS WORK,10.0888,0.2748
+kid_parwork_row_percent,"CHILD, AGE 0-17",1 BOTH PARENTS WORK,40.7313,0.9405
+kid_parwork_wgt_freq,"CHILD, AGE 0-17",2 ONE PARENT WORK,34349490,1253252
+kid_parwork_percent,"CHILD, AGE 0-17",2 ONE PARENT WORK,11.4779,0.2690
+kid_parwork_row_percent,"CHILD, AGE 0-17",2 ONE PARENT WORK,46.3395,0.9001
+kid_parwork_wgt_freq,"CHILD, AGE 0-17",3 NO WORKING PARENT,9583877,523188
+kid_parwork_percent,"CHILD, AGE 0-17",3 NO WORKING PARENT,3.2025,0.1550
+kid_parwork_row_percent,"CHILD, AGE 0-17",3 NO WORKING PARENT,12.9292,0.6106
