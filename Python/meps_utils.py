@@ -773,3 +773,21 @@ def crosstab_list(df: pd.DataFrame, columns: Iterable[str]) -> pd.DataFrame:
 
 
 __all__.append("crosstab_list")
+
+
+def design_df(df: pd.DataFrame, strata: str = "VARSTR", psu: str = "VARPSU") -> int:
+    """Design degrees of freedom: # of PSUs (nested in strata) minus # of strata."""
+    d = df[[strata, psu]].dropna().drop_duplicates()
+    return len(d) - d[strata].nunique()
+
+
+def add_cv_clm(res: pd.DataFrame, dof: int, alpha: float = 0.05) -> pd.DataFrame:
+    """Add the SAS ``CV`` and ``CLM`` / ``CLSUM`` columns (t-based limits) to an estimate table."""
+    from scipy import stats
+
+    t = stats.t.ppf(1 - alpha / 2, dof)
+    return res.assign(
+        cv=res["se"] / res["estimate"],
+        lower_cl=res["estimate"] - t * res["se"],
+        upper_cl=res["estimate"] + t * res["se"],
+    )
