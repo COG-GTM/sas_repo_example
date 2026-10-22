@@ -149,7 +149,12 @@ def read_meps(path: str | os.PathLike, columns: Sequence[str] | None = None) -> 
         except ImportError:  # pragma: no cover - pyreadstat is in requirements.txt
             df = pd.read_sas(path, format="sas7bdat", encoding="latin-1")
     elif ext in (".ssp", ".xpt", ".stc"):
-        df = pd.read_sas(path, format="xport", encoding="latin-1")
+        try:
+            df = pd.read_sas(path, format="xport", encoding="latin-1")
+        except ValueError:  # some older XPORT headers are rejected by pandas
+            import pyreadstat
+
+            df, _ = pyreadstat.read_xport(str(path), encoding="latin-1")
         # pandas decodes IBM-float zeros with a non-zero exponent byte as
         # ~5.4e-79 instead of 0; snap them back to exact zeros.
         num = df.select_dtypes("number").columns

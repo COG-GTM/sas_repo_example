@@ -37,7 +37,9 @@ H50 = load_meps("h50", columns=["DUPERSID", "UNINS00", "TOTEXP00", "PANEL00"])
 H50 = H50[H50["PANEL00"] == 4].drop(columns="PANEL00")
 
 # Panel 4 longitudinal file; YRINDP4 = 1 selects persons in both 1999 and 2000
-H58 = load_meps("h58", columns=["DUPERSID", "LONGWTP4", "VARPSUP4", "VARSTRP4", "YRINDP4"])
+# (current releases of HC-058 name these LONGWT / YEARIND)
+H58 = load_meps("h58", columns=["DUPERSID", "LONGWTP4", "LONGWT", "VARPSUP4", "VARSTRP4", "YRINDP4", "YEARIND"])
+H58 = H58.rename(columns={"LONGWT": "LONGWTP4", "YEARIND": "YRINDP4"})
 H58 = H58[H58["YRINDP4"] == 1].drop(columns="YRINDP4")
 
 # 1999 analytic variables are re-coded 1 or 0; 2000 variables 100 or 0 so the

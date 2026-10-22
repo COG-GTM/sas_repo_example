@@ -60,7 +60,12 @@ for yy, (name, wt) in files.items():
     print(add_cv_clm(res, design_df(df, st, psu)).to_string(index=False), "\n")
 
 # (2) Pooled estimates: POOLWT = weight / 2, with STRA9602 / PSU9602 from HC-036
-H36 = load_meps("h36", columns=["DUPERSID", "STRA9602", "PSU9602"])
+# The current HC-036 release extends the pooled design variables beyond 2002
+# (e.g. STRA9618 / PSU9618); use whichever pooled pair the file provides.
+H36 = load_meps("h36")
+_stra = next(c for c in H36.columns if c.startswith("STRA96"))
+H36 = H36[["DUPERSID", _stra, _stra.replace("STRA", "PSU")]]
+H36.columns = ["DUPERSID", "STRA9602", "PSU9602"]
 
 
 def pool(y1, y2):
