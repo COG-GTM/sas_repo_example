@@ -162,7 +162,7 @@ fit.summary_frame()
 ``` bash
 export MEPS_DIR=/path/to/MEPS
 python Python/summary_tables_examples/care_access_2019.py
-python Python/workshop_exercises/exercise_1a/Exercise1.py
+python Python/workshop_exercises/exercise_1a/Exercise1a.py
 ```
 
 Notes:
