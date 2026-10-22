@@ -187,9 +187,8 @@ def download_meps(
     urls = [f"{MEPS_URL}/{name}/{name}v9.zip", f"{MEPS_URL}/{name}ssp.zip"]
     # Event-condition link files (e.g. h206if1) live under the base folder (h206i).
     # Pooled linkage variance estimation files (e.g. h36u19) live under h036.
-    pooled = re.fullmatch(r"h(\d+)u\d+", name)
-    if pooled:
-        urls.insert(1, f"{MEPS_URL}/h{int(pooled.group(1)):03d}/{name}v9.zip")
+    if re.fullmatch(r"h36(u\d+)?", name):
+        urls.insert(1, f"{MEPS_URL}/h036/{name}v9.zip")
     link = re.fullmatch(r"(h\d+[a-z]+)f\d+", name)
     if link:
         urls.insert(1, f"{MEPS_URL}/{link.group(1)}/{name}v9.zip")
