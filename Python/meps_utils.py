@@ -203,16 +203,32 @@ def load_meps(
     return read_meps(path, columns=columns)
 
 
-def apply_format(series: pd.Series, fmt, default=None) -> pd.Series:
+def apply_format(series: pd.Series, fmt, default=None, missing=None) -> pd.Series:
     """Apply a SAS-style ``PROC FORMAT`` value format to a Series.
 
-    ``fmt`` is either a dict mapping values to labels or a callable. Unmapped
-    values become ``default`` (or keep their original value when ``default``
-    is None), mirroring how SAS prints unformatted values.
+    ``fmt`` is one of:
+
+    * a dict mapping values to labels (``1 = 'Yes'``),
+    * a list of ``(low, high, label)`` tuples for range formats
+      (``18-44 = '18-44'``; use ``-np.inf`` / ``np.inf`` for ``LOW`` /
+      ``HIGH``; ranges are inclusive and the first match wins),
+    * a callable.
+
+    Missing values (SAS ``.``) become ``missing`` when given. Unmapped values
+    become ``default`` (or keep their original value when ``default`` is
+    None), mirroring how SAS prints unformatted values (``OTHER =``).
     """
     if callable(fmt):
         return series.map(fmt)
-    mapped = series.map(fmt)
+    if isinstance(fmt, list):
+        vals = pd.to_numeric(series, errors="coerce")
+        mapped = pd.Series(np.nan, index=series.index, dtype=object)
+        for low, high, label in reversed(fmt):
+            mapped = mapped.mask((vals >= low) & (vals <= high), label)
+    else:
+        mapped = series.map(fmt)
+    if missing is not None:
+        mapped = mapped.mask(series.isna(), missing)
     fallback = series if default is None else default
     return mapped.where(mapped.notna(), fallback)
 
