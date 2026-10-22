@@ -551,15 +551,19 @@ def survey_freq(
     col_levels = sorted(df.loc[valid, col].unique())
     row_levels = sorted(df.loc[valid, row].unique())
     tmp = df[[weight, stratum, psu] + keys].copy()
-    cells = {}
-    # helper columns are named by level position so arbitrary labels (floats, "|") round-trip
+    # helper columns are named by level position (so arbitrary labels such as floats or "|"
+    # round-trip) under a prefix that no input column uses
+    pre = "_freq_"
+    while any(str(name).startswith(pre) for name in tmp.columns):
+        pre = "_" + pre
+    cells, col_vars = {}, {}
     for j, c in enumerate(col_levels):
-        tmp[f"c{j}"] = (df[col] == c).astype(float)
+        col_vars[f"{pre}c{j}"] = _fmt_level(c)
+        tmp[f"{pre}c{j}"] = (df[col] == c).astype(float)
         for i, r in enumerate(row_levels):
-            cells[f"rc{i}_{j}"] = (_fmt_level(r), _fmt_level(c))
-            tmp[f"rc{i}_{j}"] = ((df[row] == r) & (df[col] == c)).astype(float)
+            cells[f"{pre}rc{i}_{j}"] = (_fmt_level(r), _fmt_level(c))
+            tmp[f"{pre}rc{i}_{j}"] = ((df[row] == r) & (df[col] == c)).astype(float)
     kw = {"weight": weight, "stratum": stratum, "psu": psu, "subpop": valid, "lonely_psu": lonely_psu}
-    col_vars = {f"c{j}": _fmt_level(c) for j, c in enumerate(col_levels)}
 
     def relabel(res):
         res["variable"] = res["variable"].map(col_vars)

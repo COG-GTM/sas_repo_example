@@ -173,3 +173,17 @@ def test_survey_freq_labels_round_trip():
     assert len(merged) == len(out["wgt_freq"]) == 4
     share = merged["estimate_w"] / merged["estimate_w"].sum() * 100
     assert np.allclose(merged["estimate"], share)
+
+
+def test_survey_freq_helper_names_do_not_clobber_inputs():
+    """Design columns named like survey_freq's helper columns keep their values."""
+    rng = np.random.default_rng(1)
+    df = pd.DataFrame({"VARSTR": np.repeat([1, 2, 3], 20), "VARPSU": np.tile([1, 2], 30),
+                       "W": rng.uniform(1, 3, 60), "R": rng.choice(["a", "b"], 60),
+                       "C": rng.choice(["YES", "NO"], 60)})
+    expected = survey_freq(df, "R", "C", "W")
+    renamed = df.rename(columns={"W": "c0", "VARSTR": "_freq_c0", "R": "rc0_0"})
+    out = survey_freq(renamed, "rc0_0", "C", "c0", stratum="_freq_c0")
+    for name in ("wgt_freq", "percent", "row_percent"):
+        got = out[name].rename(columns={"rc0_0": "R"})
+        pd.testing.assert_frame_equal(got.reset_index(drop=True), expected[name].reset_index(drop=True))
