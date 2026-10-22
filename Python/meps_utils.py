@@ -128,6 +128,12 @@ def read_meps(path: str | os.PathLike, columns: Sequence[str] | None = None) -> 
     columns are returned as ``str``.
     """
     path = Path(path)
+    if not path.exists():
+        # Some files are published only in one format; accept either one.
+        for alt in (".sas7bdat", ".ssp"):
+            if path.with_suffix(alt).exists():
+                path = path.with_suffix(alt)
+                break
     ext = path.suffix.lower()
     if ext == ".sas7bdat":
         try:
