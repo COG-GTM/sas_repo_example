@@ -34,6 +34,7 @@ from __future__ import annotations
 import io
 import math
 import os
+import re
 import warnings
 import zipfile
 from pathlib import Path
@@ -184,6 +185,10 @@ def download_meps(
             return existing
 
     urls = [f"{MEPS_URL}/{name}/{name}v9.zip", f"{MEPS_URL}/{name}ssp.zip"]
+    # Event-condition link files (e.g. h206if1) live under the base folder (h206i).
+    link = re.fullmatch(r"(h\d+[a-z]+)f\d+", name)
+    if link:
+        urls.insert(1, f"{MEPS_URL}/{link.group(1)}/{name}v9.zip")
     for url in urls:
         resp = requests.get(url, timeout=600)
         if resp.status_code != 200 or not resp.content.startswith(b"PK"):
