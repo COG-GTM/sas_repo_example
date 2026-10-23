@@ -48,7 +48,7 @@ Environment: Python 3.12, packages in [requirements.txt](requirements.txt); R 4.
 | exercise_5b/Exercise5b | yes | 672/860 | Match |
 | exercise_6a/Exercise6 | yes | 22/61 | SURVEYLOGISTIC coefficients and SEs match to all printed digits (e.g. Intercept -2.1417 (0.0814), AGELAST 0.0313 (0.00121)) |
 | exercise_6b/exercise6 | yes | 96/211 | SURVEYLOGISTIC coefficients and SEs match to all printed digits |
-| cond_mv_2020 | yes | 38/105 (vs R) | No committed SAS output; checked against R `cond_mv_2020.R`: totals, means and SEs match (expenditure total SE 4,437,433,004 (requires keeping missing analysis values in the DOMAIN design) |
+| cond_mv_2020 | yes | 38/105 (vs R) | No committed SAS output; checked against R `cond_mv_2020.R`: totals, means and SEs match (expenditure total SE 4,437,433,004, which requires keeping records with missing analysis values in the DOMAIN design) |
 | cond_pmed_2020 | yes | 59/89 (vs R) | No committed SAS output; checked against R `cond_pmed_2020.R`: totals, means and SEs match exactly. R sets `survey.adjust.domain.lonely = TRUE`, which changes the POVCAT20 domain SEs (e.g. 0.2973 vs 0.2901); with that option off, as in SAS, R and Python agree to all digits |
 
 ## Older exercises, 1996-2006 (reference: committed SAS `.pdf`)
