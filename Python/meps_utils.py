@@ -325,7 +325,8 @@ def surveymeans(
     ``domain`` lists the crossed DOMAIN variables. ``missing=True`` is the SAS
     MISSING option (missing domain values form their own level); otherwise
     records with a missing domain value are outside every domain. Records with a
-    missing analysis variable are excluded from that variable's statistics.
+    missing analysis value are dropped (no DOMAIN) or kept in the design but
+    placed outside every domain (DOMAIN), matching SAS.
     """
     d = _design(df, weight, strata, cluster)
     domain = _as_list(domain)
@@ -334,9 +335,12 @@ def surveymeans(
     for v in _as_list(var):
         y = pd.to_numeric(d[v], errors="coerce")
         ok = y.notna()
-        dd = d.loc[ok]
-        yy = y[ok]
-        k = key[ok] if key is not None else None
+        if key is None:
+            dd, yy, k = d.loc[ok], y[ok], None
+        else:
+            # As in SAS DOMAIN analysis, records with a missing analysis value stay in
+            # the design (keeping every stratum/PSU) but fall outside every domain.
+            dd, yy, k = d, y.fillna(0.0), key.where(ok, _OUT)
         mean = _taylor(PopParam.mean, yy, dd, weight, strata, cluster, k)
         tot = _taylor(PopParam.total, yy, dd, weight, strata, cluster, k)
         if k is None:
@@ -383,8 +387,10 @@ def surveyratio(
     y = pd.to_numeric(d[numerator], errors="coerce")
     x = pd.to_numeric(d[denominator], errors="coerce")
     ok = y.notna() & x.notna()
-    d, y, x = d[ok], y[ok], x[ok]
-    k = key[ok] if key is not None else None
+    if key is None:
+        d, y, x, k = d[ok], y[ok], x[ok], None
+    else:
+        y, x, k = y.where(ok, 0.0), x.where(ok, 0.0), key.where(ok, _OUT)
     est = _taylor(PopParam.ratio, y, d, weight, strata, cluster, k, x=x)
     if k is None:
         return pd.DataFrame([dict(Numerator=numerator, Denominator=denominator, N=len(d),
@@ -518,6 +524,10 @@ def surveyreg(
     import patsy
 
     d = _design(df, weight, strata, cluster)
+    # patsy only recognises None/NaN as missing; pandas string/object columns may hold pd.NA
+    for c in d.columns:
+        if d[c].dtype == object or pd.api.types.is_string_dtype(d[c]):
+            d[c] = d[c].astype(object).where(d[c].notna(), None)
     y, X = patsy.dmatrices(formula, d, return_type="dataframe", NA_action="drop")
     d = d.loc[y.index]
     w = d[weight].to_numpy(float)
