@@ -36,7 +36,6 @@ INPUT FILES:      (1) <MEPS_DIR>/DATA/H78.SAS7BDAT (2003 MEDICAL CONDITIONS FILE
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents if (p / "meps_utils.py").exists())))
