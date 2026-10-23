@@ -103,11 +103,14 @@ def _find(name: str, folder: Path) -> Path | None:
     stem = Path(name).stem if Path(name).suffix.lower() in (".sas7bdat", ".ssp", ".dta") else name
     if not folder.exists():
         return None
-    files = {p.name.lower(): p for p in folder.iterdir()}
-    for ext in (".sas7bdat", ".ssp", ".dta"):
-        if f"{stem.lower()}{ext}" in files:
-            return files[f"{stem.lower()}{ext}"]
-    return None
+    wanted = [f"{stem.lower()}{ext}" for ext in (".sas7bdat", ".ssp", ".dta")]
+    files = {p.name.lower(): p for p in folder.iterdir() if p.is_file()}
+    for w in wanted:
+        if w in files:
+            return files[w]
+    nested = sorted((p for p in folder.rglob("*") if p.is_file() and p.name.lower() in wanted),
+                    key=lambda p: (wanted.index(p.name.lower()), len(p.parts), str(p)))
+    return nested[0] if nested else None
 
 
 def download_meps(name: str, meps_dir: str | os.PathLike | None = None) -> Path:
@@ -271,7 +274,8 @@ def _domain_key(d: pd.DataFrame, domain: Sequence[str] | None, missing: bool) ->
     txt = parts.apply(lambda s: s.map(str))  # astype(str) keeps NaN as missing in pandas 3
     key = txt.agg("\x01".join, axis=1) if len(domain) > 1 else txt.iloc[:, 0]
     if not missing:
-        key = key.where(parts.notna().all(axis=1), _OUT)
+        # SAS treats a blank character value as missing
+        key = key.where((parts.notna() & parts.ne("")).all(axis=1), _OUT)
     return key
 
 
@@ -443,11 +447,13 @@ def surveyquantile(
     """
     d = _design(df, weight, strata, cluster)
     y = pd.to_numeric(d[var], errors="coerce")
-    d, y = d[y.notna()], y[y.notna()]
     domain = _as_list(domain)
     key = _domain_key(d, domain, missing)
     if key is None:
+        d, y = d[y.notna()], y[y.notna()]
         key = pd.Series("all", index=d.index)
+    else:  # as in surveymeans: missing outcomes stay in the design, outside every domain
+        key = key.where(y.notna(), _OUT)
     t = stats.t.ppf(1 - alpha / 2, _df_design(d, strata, cluster))
     rows = []
     levels = _levels(d, domain, key) if domain else pd.DataFrame(index=["all"])
