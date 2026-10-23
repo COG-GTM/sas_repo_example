@@ -84,6 +84,8 @@ __all__ = [
     "sas_format",
     "freq_list",
     "surveymeans",
+    "design_df",
+    "clm",
     "surveyratio",
     "surveyquantile",
     "surveyfreq",
@@ -175,7 +177,10 @@ def read_meps(
         except ValueError:  # a few old XPORT headers are rejected by pandas
             import pyreadstat
 
-            df, _ = pyreadstat.read_xport(str(path), encoding="latin-1")
+            try:
+                df, _ = pyreadstat.read_xport(str(path), encoding="latin-1")
+            except pyreadstat.ReadstatError:  # e.g. VM/CMS headers with no character set
+                df, _ = pyreadstat.read_xport(str(path))
         # IBM floats: pandas decodes some zeros as ~5e-79; snap them to 0.
         num = df.select_dtypes("number").columns
         df[num] = df[num].mask(df[num].abs() < 1e-70, 0.0)
@@ -263,7 +268,8 @@ def _domain_key(d: pd.DataFrame, domain: Sequence[str] | None, missing: bool) ->
     if not domain:
         return None
     parts = d[list(domain)]
-    key = parts.astype(str).agg("\x01".join, axis=1) if len(domain) > 1 else parts.iloc[:, 0].astype(str)
+    txt = parts.apply(lambda s: s.map(str))  # astype(str) keeps NaN as missing in pandas 3
+    key = txt.agg("\x01".join, axis=1) if len(domain) > 1 else txt.iloc[:, 0]
     if not missing:
         key = key.where(parts.notna().all(axis=1), _OUT)
     return key
@@ -364,6 +370,21 @@ def surveymeans(
         out = out.set_index("VarName").loc[_as_list(var)].reset_index()
         out = out[domain + [c for c in out.columns if c not in domain]]
     return out.reset_index(drop=True)
+
+
+def design_df(df: pd.DataFrame, strata: str = "VARSTR", cluster: str = "VARPSU", weight: str | None = None) -> int:
+    """Design degrees of freedom used by SAS for t-based CLMs: #PSUs - #strata."""
+    d = df if weight is None else df[df[weight] > 0]
+    return int(d.groupby(strata)[cluster].nunique().sum() - d[strata].nunique())
+
+
+def clm(t: pd.DataFrame, ddf: int, est: str = "Mean", se: str = "StdErr", alpha: float = 0.05) -> pd.DataFrame:
+    """Add SAS CV and (1 - alpha) CLM / CLSUM columns to a survey* result table."""
+    q = stats.t.ppf(1 - alpha / 2, ddf)
+    t = t.copy()
+    t["CV"] = t[se] / t[est]
+    t["LowerCL"], t["UpperCL"] = t[est] - q * t[se], t[est] + q * t[se]
+    return t
 
 
 def _sortkey(v):
